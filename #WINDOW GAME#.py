@@ -1,4 +1,6 @@
 import tkinter as tk
+import pygame, sys, pymunk
+
 from PIL import Image, ImageTk
 WIDTH = 250
 HEIGHT = 100
@@ -15,3 +17,4 @@ image_label = tk.Label(window, image=photo_image)
 image_label.pack()
 
 window.mainloop()
+
