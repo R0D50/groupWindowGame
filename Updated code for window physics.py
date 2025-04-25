@@ -1,13 +1,18 @@
 
 import tkinter as tk
 from PIL import Image, ImageTk
-import pymunk
+import threading
+import time
+#import pymunk
 
 # Constants
 WIDTH = 250
 HEIGHT = 100
 MARGIN = 0
 FLOAT_ABOVE_BOTTOM = 25
+SHOP_POINTS = 0
+SHOP_WIDTH = 400
+SHOP_HEIGHT = 200
 
 # Main window dimensions (dynamic based on screen size)
 window = tk.Tk()
@@ -23,7 +28,7 @@ window.resizable(True, True)
 open_windows = []
 
 # Load image once
-image_path = "C:/Users/roder/OneDrive/Desktop/Code/Screenshot 2025-03-31 091325.png"
+image_path = "THIS NEEDS TO BE FIXED TO A RELATIVE PATH"
 try:
     image = Image.open(image_path)
     photo_image = ImageTk.PhotoImage(image)
@@ -164,8 +169,63 @@ if photo_image:
 window.photo_image = photo_image
 
 # Instructions
-tk.Label(window, text="Press 'n' to open a new falling block").pack()
-window.bind('n', open_new_window)
+#tk.Label(window, text="Press 'n' to open a new falling block").pack()
+#window.bind('n', open_new_window)
+
+#WIP, should work for the time being though
+class ShopGUI(tk.Frame):
+    def __init__(self, master):
+        tk.Frame.__init__(self, master, bg = 'white')
+        self.setupShop()
+
+    #Shop button layout setup
+    def setupShop(self):
+            #self.display = tk.Label(self, text = f'Points: {SHOP_POINTS}', anchor = tk.NE, \
+                #bg = 'white', height = 1, font = ("TkDefaultFont", 12))
+            #self.display.grid(row = 0, column = 0, columnspan = 5, sticky = tk.E+tk.W+tk.N+tk.S)
+            
+            #configures the rows and columns of the shop
+            for row in range(6):
+                tk.Grid.rowconfigure(self, row, weight = 1)
+            for col in range(5):
+                tk.Grid.columnconfigure(self, col, weight = 1)            
+            
+            #Config the shop's buttons, each will be set to its own button, page system maybe?
+                #Wooden Block Button
+                    #Standard item, no real special properties
+            button = tk.Button(self, bg = 'white', text = "Wooden Block",
+                borderwidth = 1, highlightthickness = 0, activebackground = 'white', command = open_new_window)
+            #set button in the shop's grid properly
+            button.grid(row = 1, column = 0, sticky = tk.E+tk.W+tk.N+tk.S)
+
+                #New Item goes here:
+                    #Item description
+                    #Should just have to change the "command" tag to what the function for creating the new window type will be for this to work
+            '''
+            button = tk.Button(self, bg = 'white', text = "Wooden Block",
+                borderwidth = 1, highlightthickness = 0, activebackground = 'white', command = open_new_window)
+            #set button in the shop's grid properly
+            button.grid(row = 1, column = 1, sticky = tk.E+tk.W+tk.N+tk.S)
+            '''
+            
+            #pack the GUI
+            self.pack(expand = 1)
+
+# Create the shop 
+window = tk.Tk()
+window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
+window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
+shop = ShopGUI(window)
+
+#updating the shop's title to show the players points
+'''
+def pointUpdater():
+    threading.Timer(0.5, pointUpdater).start()
+    if (SHOP_POINTS != 0):
+        window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
+pointUpdater()
+'''
+
 
 # Start
 apply_gravity()

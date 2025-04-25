@@ -19,7 +19,7 @@ open_windows = []
 
 # Function to open a new window with the image each time 'n' is pressed
 def open_new_window(event=None):
-    image_path = "C:\\Users\\markm\\OneDrive\\Desktop\\Screenshot 2025-03-31 091325.png"
+    image_path = "C:/Users/gabeb/Desktop/groupWindowGame/groupWindowGame/sdf/wb.png"
     
     # Open and prepare the image
     image = Image.open(image_path)
@@ -179,7 +179,7 @@ def move_to_bottom_or_on_top(window):
                             break
 
 # Load the image for the main window (optional, it can be omitted if not needed)
-image_path = "C:\\Users\\markm\\OneDrive\\Desktop\\Screenshot 2025-03-31 091325.png"
+image_path = "C:/Users/gabeb/Desktop/groupWindowGame/groupWindowGame/sdf/wb.png"
 image = Image.open(image_path)
 photo_image = ImageTk.PhotoImage(image)
 
