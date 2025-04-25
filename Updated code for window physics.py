@@ -1,9 +1,7 @@
-
 import tkinter as tk
 from PIL import Image, ImageTk
 import threading
 import time
-#import pymunk
 
 # Constants
 WIDTH = 250
@@ -28,18 +26,20 @@ window.resizable(True, True)
 open_windows = []
 
 # Load image once
-image_path = "THIS NEEDS TO BE FIXED TO A RELATIVE PATH"
-try:
-    image = Image.open(image_path)
-    photo_image = ImageTk.PhotoImage(image)
-except Exception as e:
-    print(f"Error loading image: {e}")
-    photo_image = None
+image_path_block = "C:\\Users\\markm\\OneDrive\\Desktop\\Screenshot 2025-03-31 091325.png"
+image_path_ball = "C:\\Users\\markm\\OneDrive\\Desktop\\download-removebg-preview.png"
 
-# Function to spawn a new window
+
+# Function to spawn a new wooden block window
 def open_new_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
-    spawn_y = 50  # Start near the top of the screen
+    spawn_y = 50
+    try:
+        image = Image.open(image_path_block)
+        photo_image = ImageTk.PhotoImage(image)
+    except Exception as e:
+        print(f"Error loading image: {e}")
+        photo_image = None
 
     new_window = tk.Toplevel()
     new_window.title("Wooden Block")
@@ -56,22 +56,52 @@ def open_new_window(event=None):
         'x': spawn_x,
         'y': spawn_y,
         'velocity': 0,
-        'falling': True
+        'falling': True,
+        'bouncy': False
     })
-
 
     new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
+# Function to spawn a bouncy ball window
+def open_bouncy_ball_window(event=None):
+    spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
+    spawn_y = 50
+    try:
+        image = Image.open(image_path_ball)
+        photo_image = ImageTk.PhotoImage(image)
+    except Exception as e:
+        print(f"Error loading image: {e}")
+        photo_image = None
+    new_window = tk.Toplevel()
+    new_window.title("Bouncy Ball")
+    new_window.geometry(f"{WIDTH}x{HEIGHT}+{spawn_x}+{spawn_y}")
+    new_window.resizable(False, False)
 
+    if photo_image:
+        label = tk.Label(new_window, image=photo_image)
+        label.pack()
+        new_window.photo_image = photo_image
 
- 
+    open_windows.append({
+        'window': new_window,
+        'x': spawn_x,
+        'y': spawn_y,
+        'velocity': 0,
+        'falling': True,
+        'bouncy': True
+    })
 
+    new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
+    new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
+    new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
+
+# Apply gravity and handle collisions
 def apply_gravity():
     for block in open_windows:
         if not block['falling']:
-            continue  # Skip blocks that are not falling
+            continue
 
         win = block['window']
         x = block['x']
@@ -91,8 +121,16 @@ def apply_gravity():
                 y < oy):
                 touching_block = True
                 y = oy - HEIGHT
-                velocity = 0
-                block['falling'] = False
+                if block.get('bouncy'):
+                    velocity = -int(velocity * 0.6)
+                    if abs(velocity) < 2:
+                        velocity = 0
+                        block['falling'] = False
+                    else:
+                        block['falling'] = True
+                else:
+                    velocity = 0
+                    block['falling'] = False
                 break
 
         if not touching_block and y < bottom_y:
@@ -100,10 +138,19 @@ def apply_gravity():
             velocity += 2
             y += velocity
 
-            if y > bottom_y:
+            if y >= bottom_y:
                 y = bottom_y
-                velocity = 0
-                block['falling'] = False
+                if block.get('bouncy'):
+                    velocity = -int(velocity * 0.6)
+                    if abs(velocity) < 2:
+                        velocity = 0
+                        block['falling'] = False
+                    else:
+                        block['falling'] = True
+                        y += velocity  # Bounce up immediately
+                else:
+                    velocity = 0
+                    block['falling'] = False
 
         block['x'] = x
         block['y'] = y
@@ -112,13 +159,6 @@ def apply_gravity():
         win.geometry(f"{WIDTH}x{HEIGHT}+{x}+{y}")
 
     window.after(50, apply_gravity)
-
-
-
-
-
-
-
 
 # Drag event handlers
 def on_window_press(event, window):
@@ -129,104 +169,60 @@ def on_window_drag(event, window):
     y = window.winfo_y() + event.y - window.drag_data['y']
     window.geometry(f"+{x}+{y}")
 
-# Update the block's position in the open_windows list
     for block in open_windows:
         if block['window'] == window:
             block['x'] = x
             block['y'] = y
-            block['falling'] = False  # Stop gravity while dragging
+            block['falling'] = False
             break
-
-'''
-    for block in open_windows:
-        if block['window'] == window:
-            block['x'] = window.winfo_x()
-            block['y'] = window.winfo_y()
-            break
-'''
 
 def on_window_release(event, window):
     for block in open_windows:
         if block['window'] == window:
             block['x'] = window.winfo_x()
             block['y'] = window.winfo_y()
-           # block['falling'] = False
             window.after(100, lambda: setFalling(block))
             break
 
 def setFalling(block):
     block['falling'] = True
 
-
-
-
-
-
-# Main image (optional)
+'''# Main image (optional)
 if photo_image:
     image_label = tk.Label(window, image=photo_image)
     image_label.pack()
-window.photo_image = photo_image
+window.photo_image = photo_image'''
 
-# Instructions
-#tk.Label(window, text="Press 'n' to open a new falling block").pack()
-#window.bind('n', open_new_window)
-
-#WIP, should work for the time being though
+# Shop GUI class
 class ShopGUI(tk.Frame):
     def __init__(self, master):
-        tk.Frame.__init__(self, master, bg = 'white')
+        tk.Frame.__init__(self, master, bg='white')
         self.setupShop()
 
-    #Shop button layout setup
     def setupShop(self):
-            #self.display = tk.Label(self, text = f'Points: {SHOP_POINTS}', anchor = tk.NE, \
-                #bg = 'white', height = 1, font = ("TkDefaultFont", 12))
-            #self.display.grid(row = 0, column = 0, columnspan = 5, sticky = tk.E+tk.W+tk.N+tk.S)
-            
-            #configures the rows and columns of the shop
-            for row in range(6):
-                tk.Grid.rowconfigure(self, row, weight = 1)
-            for col in range(5):
-                tk.Grid.columnconfigure(self, col, weight = 1)            
-            
-            #Config the shop's buttons, each will be set to its own button, page system maybe?
-                #Wooden Block Button
-                    #Standard item, no real special properties
-            button = tk.Button(self, bg = 'white', text = "Wooden Block",
-                borderwidth = 1, highlightthickness = 0, activebackground = 'white', command = open_new_window)
-            #set button in the shop's grid properly
-            button.grid(row = 1, column = 0, sticky = tk.E+tk.W+tk.N+tk.S)
+        for row in range(6):
+            tk.Grid.rowconfigure(self, row, weight=1)
+        for col in range(5):
+            tk.Grid.columnconfigure(self, col, weight=1)
 
-                #New Item goes here:
-                    #Item description
-                    #Should just have to change the "command" tag to what the function for creating the new window type will be for this to work
-            '''
-            button = tk.Button(self, bg = 'white', text = "Wooden Block",
-                borderwidth = 1, highlightthickness = 0, activebackground = 'white', command = open_new_window)
-            #set button in the shop's grid properly
-            button.grid(row = 1, column = 1, sticky = tk.E+tk.W+tk.N+tk.S)
-            '''
-            
-            #pack the GUI
-            self.pack(expand = 1)
+        # Wooden Block Button
+        block_button = tk.Button(self, bg='white', text="Wooden Block",
+            borderwidth=1, highlightthickness=0, activebackground='white', command=open_new_window)
+        block_button.grid(row=1, column=0, sticky=tk.E + tk.W + tk.N + tk.S)
 
-# Create the shop 
-window = tk.Tk()
-window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
-window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
-shop = ShopGUI(window)
+        # Bouncy Ball Button
+        ball_button = tk.Button(self, bg='white', text="Bouncy Ball",
+            borderwidth=1, highlightthickness=0, activebackground='white', command=open_bouncy_ball_window)
+        ball_button.grid(row=1, column=1, sticky=tk.E + tk.W + tk.N + tk.S)
 
-#updating the shop's title to show the players points
-'''
-def pointUpdater():
-    threading.Timer(0.5, pointUpdater).start()
-    if (SHOP_POINTS != 0):
-        window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
-pointUpdater()
-'''
+        self.pack(expand=1)
 
+# Create the shop window
+shop_window = tk.Tk()
+shop_window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
+shop_window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
+shop = ShopGUI(shop_window)
 
-# Start
+# Start the gravity simulation
 apply_gravity()
 window.mainloop()
