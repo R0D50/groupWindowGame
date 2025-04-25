@@ -30,13 +30,15 @@ def open_new_window(event=None):
     try:
         image = Image.open(image_path_block)
         photo_image = ImageTk.PhotoImage(image)
+        img_width, img_height = image.size
     except Exception as e:
         print(f"Error loading image: {e}")
         photo_image = None
+        img_width, img_height = WIDTH, HEIGHT
 
     new_window = tk.Toplevel()
     new_window.title("Wooden Block")
-    new_window.geometry(f"{WIDTH}x{HEIGHT}+{spawn_x}+{spawn_y}")
+    new_window.geometry(f"{img_width}x{img_height}+{spawn_x}+{spawn_y}")
     new_window.resizable(False, False)
 
     if photo_image:
@@ -50,27 +52,40 @@ def open_new_window(event=None):
         'y': spawn_y,
         'velocity': 0,
         'falling': True,
-        'bouncy': False
+        'bouncy': False,
+        'width': img_width,
+        'height': img_height
     })
 
     new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
-# Function to spawn a bouncy ball window
+# Function to spawn a resized bouncy ball window
 def open_bouncy_ball_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
     spawn_y = 50
     try:
         image = Image.open(image_path_ball)
-        photo_image = ImageTk.PhotoImage(image)
+
+        # Resize the image to be smaller (e.g., 50% of original size)
+        scale_factor = 0.5
+        img_width, img_height = image.size
+        new_width = int(img_width * scale_factor)
+        new_height = int(img_height * scale_factor)
+        
+        # Use LANCZOS resampling (which is the best quality resampling)
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        photo_image = ImageTk.PhotoImage(resized_image)
+
     except Exception as e:
         print(f"Error loading image: {e}")
         photo_image = None
+        new_width, new_height = WIDTH, HEIGHT  # fallback
 
     new_window = tk.Toplevel()
     new_window.title("Bouncy Ball")
-    new_window.geometry(f"{WIDTH}x{HEIGHT}+{spawn_x}+{spawn_y}")
+    new_window.geometry(f"{new_width}x{new_height}+{spawn_x}+{spawn_y}")
     new_window.resizable(False, False)
 
     if photo_image:
@@ -84,7 +99,9 @@ def open_bouncy_ball_window(event=None):
         'y': spawn_y,
         'velocity': 0,
         'falling': True,
-        'bouncy': True
+        'bouncy': True,
+        'width': new_width,
+        'height': new_height
     })
 
     new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
@@ -101,8 +118,10 @@ def apply_gravity():
         x = block['x']
         y = block['y']
         velocity = block['velocity']
+        width = block.get('width', WIDTH)
+        height = block.get('height', HEIGHT)
 
-        bottom_y = SCREEN_HEIGHT - HEIGHT - FLOAT_ABOVE_BOTTOM
+        bottom_y = SCREEN_HEIGHT - height - FLOAT_ABOVE_BOTTOM
         touching_block = False
 
         for other in open_windows:
@@ -110,11 +129,15 @@ def apply_gravity():
                 continue
             ox = other['x']
             oy = other['y']
-            if (abs((x + WIDTH / 2) - (ox + WIDTH / 2)) < WIDTH and
-                y + HEIGHT + velocity >= oy and
+            o_width = other.get('width', WIDTH)
+            o_height = other.get('height', HEIGHT)
+
+            # Adjust collision detection to account for the updated size of the bouncy ball
+            if (abs((x + width / 2) - (ox + o_width / 2)) < width and
+                y + height + velocity >= oy and
                 y < oy):
                 touching_block = True
-                y = oy - HEIGHT
+                y = oy - height
                 if block.get('bouncy'):
                     velocity = -int(velocity * 0.6)
                     if abs(velocity) < 2:
@@ -141,7 +164,7 @@ def apply_gravity():
                         block['falling'] = False
                     else:
                         block['falling'] = True
-                        y += velocity
+                        y += velocity  # Bounce up immediately
                 else:
                     velocity = 0
                     block['falling'] = False
@@ -150,7 +173,7 @@ def apply_gravity():
         block['y'] = y
         block['velocity'] = velocity
 
-        win.geometry(f"{WIDTH}x{HEIGHT}+{x}+{y}")
+        win.geometry(f"{width}x{height}+{x}+{y}")
 
     shop_window.after(50, apply_gravity)
 
@@ -205,7 +228,7 @@ class ShopGUI(tk.Frame):
 
         self.pack(expand=1)
 
-# Create the shop window (main window now)
+# Create the shop window (main window)
 shop_window = tk.Tk()
 shop_window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
 shop_window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
