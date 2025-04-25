@@ -1,7 +1,5 @@
 import tkinter as tk
 from PIL import Image, ImageTk
-import threading
-import time
 
 # Constants
 WIDTH = 250
@@ -12,23 +10,18 @@ SHOP_POINTS = 0
 SHOP_WIDTH = 400
 SHOP_HEIGHT = 200
 
-# Main window dimensions (dynamic based on screen size)
-window = tk.Tk()
-SCREEN_WIDTH = window.winfo_screenwidth()
-SCREEN_HEIGHT = window.winfo_screenheight()
-
-# Main window setup
-window.title("Wooden Block")
-window.geometry(f"{WIDTH}x{HEIGHT}")
-window.resizable(True, True)
+# Temporary root to get screen dimensions, then destroy
+_temp_root = tk.Tk()
+SCREEN_WIDTH = _temp_root.winfo_screenwidth()
+SCREEN_HEIGHT = _temp_root.winfo_screenheight()
+_temp_root.destroy()
 
 # List to store all windows and their physics info
 open_windows = []
 
-# Load image once
+# Load image paths
 image_path_block = "C:\\Users\\markm\\OneDrive\\Desktop\\Screenshot 2025-03-31 091325.png"
 image_path_ball = "C:\\Users\\markm\\OneDrive\\Desktop\\download-removebg-preview.png"
-
 
 # Function to spawn a new wooden block window
 def open_new_window(event=None):
@@ -74,6 +67,7 @@ def open_bouncy_ball_window(event=None):
     except Exception as e:
         print(f"Error loading image: {e}")
         photo_image = None
+
     new_window = tk.Toplevel()
     new_window.title("Bouncy Ball")
     new_window.geometry(f"{WIDTH}x{HEIGHT}+{spawn_x}+{spawn_y}")
@@ -147,7 +141,7 @@ def apply_gravity():
                         block['falling'] = False
                     else:
                         block['falling'] = True
-                        y += velocity  # Bounce up immediately
+                        y += velocity
                 else:
                     velocity = 0
                     block['falling'] = False
@@ -158,7 +152,7 @@ def apply_gravity():
 
         win.geometry(f"{WIDTH}x{HEIGHT}+{x}+{y}")
 
-    window.after(50, apply_gravity)
+    shop_window.after(50, apply_gravity)
 
 # Drag event handlers
 def on_window_press(event, window):
@@ -187,12 +181,6 @@ def on_window_release(event, window):
 def setFalling(block):
     block['falling'] = True
 
-'''# Main image (optional)
-if photo_image:
-    image_label = tk.Label(window, image=photo_image)
-    image_label.pack()
-window.photo_image = photo_image'''
-
 # Shop GUI class
 class ShopGUI(tk.Frame):
     def __init__(self, master):
@@ -217,7 +205,7 @@ class ShopGUI(tk.Frame):
 
         self.pack(expand=1)
 
-# Create the shop window
+# Create the shop window (main window now)
 shop_window = tk.Tk()
 shop_window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
 shop_window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
@@ -225,4 +213,6 @@ shop = ShopGUI(shop_window)
 
 # Start the gravity simulation
 apply_gravity()
-window.mainloop()
+
+# Main loop (only for the shop window now)
+shop_window.mainloop()
