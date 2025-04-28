@@ -1,5 +1,6 @@
 import tkinter as tk
 from PIL import Image, ImageTk
+from pathlib import Path
 
 # Constants
 WIDTH = 250
@@ -17,8 +18,12 @@ _temp_root.destroy()
 
 open_windows = []
 
-image_path_block = "C:\\Users\\markm\\OneDrive\\Desktop\\Screenshot 2025-03-31 091325.png"
-image_path_ball = "C:\\Users\\markm\\OneDrive\\Desktop\\download-removebg-preview.png"
+#Relative pathing setup: tired of having to change this crap 24/7
+
+root_dir = Path(__file__).resolve().parent.parent
+
+image_path_block = root_dir / "Window_Game" / "Window_Images" / "WB.png"
+image_path_ball = root_dir / "Window_Game" / "Window_Images" / "BB.png"
 
 def open_new_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
