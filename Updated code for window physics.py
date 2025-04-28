@@ -24,6 +24,8 @@ root_dir = Path(__file__).resolve().parent
 
 image_path_block = root_dir / "Window_Images" / "WB.png"
 image_path_ball = root_dir / "Window_Images" / "BB.png"
+image_path_block_shop = root_dir / "Shop_Images" / "WBs.png"
+image_path_ball_shop = root_dir / "Shop_Images" / "BBs"
 
 def open_new_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
@@ -255,16 +257,24 @@ class ShopGUI(tk.Frame):
             tk.Grid.rowconfigure(self, row, weight=1)
         for col in range(5):
             tk.Grid.columnconfigure(self, col, weight=1)
+        
+        Block_Image = Image.open(image_path_block_shop)
+        Block_Shop = ImageTk.PhotoImage(Block_Image)
 
-        block_button = tk.Button(self, bg='white', text="Wooden Block",
-            borderwidth=1, highlightthickness=0, activebackground='white', command=open_new_window)
+        #ball
+
+        #Anti-Garbage Collection
+        Shop_Images_List = []
+
+        block_button = tk.Button(self, text = "Wooden Block", image = Block_Shop, compound= "left", borderwidth=1, command = open_new_window)
         block_button.grid(row=1, column=0, sticky=tk.E + tk.W + tk.N + tk.S)
 
-        ball_button = tk.Button(self, bg='white', text="Bouncy Ball",
-            borderwidth=1, highlightthickness=0, activebackground='white', command=open_bouncy_ball_window)
+        ball_button = tk.Button(self, bg='white', text="Bouncy Ball", borderwidth=1, highlightthickness=0, activebackground='white', command = open_bouncy_ball_window)
         ball_button.grid(row=1, column=1, sticky=tk.E + tk.W + tk.N + tk.S)
 
         self.pack(expand=1)
+
+        Shop_Images_List.append(Block_Image)
 
 shop_window = tk.Tk()
 shop_window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
@@ -273,3 +283,4 @@ shop = ShopGUI(shop_window)
 
 apply_gravity()
 shop_window.mainloop()
+
