@@ -20,10 +20,10 @@ open_windows = []
 
 #Relative pathing setup: tired of having to change this crap 24/7
 
-root_dir = Path(__file__).resolve().parent.parent
+root_dir = Path(__file__).resolve().parent
 
-image_path_block = root_dir / "Window_Game" / "Window_Images" / "WB.png"
-image_path_ball = root_dir / "Window_Game" / "Window_Images" / "BB.png"
+image_path_block = root_dir / "Window_Images" / "WB.png"
+image_path_ball = root_dir / "Window_Images" / "BB.png"
 
 def open_new_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
