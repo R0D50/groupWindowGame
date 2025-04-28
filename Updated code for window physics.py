@@ -110,30 +110,15 @@ def apply_gravity():
         width, height = block['width'], block['height']
         is_bouncy = block.get('bouncy', False)
 
-        # Check if there is another object directly below this one
-        has_support = False
-        for other in open_windows:
-            if other == block:
-                continue
-            ox, oy = other['x'], other['y']
-            ow, oh = other['width'], other['height']
-
-            # Check if the object is below this one
-            if x + width > ox and x < ox + ow and y + height <= oy + 5 and oy + oh > y:
-                has_support = True
-                break
-
-        # If no object is directly below, apply gravity (falling physics)
-        if not has_support:
-            if block['falling']:
-                vy += 1.5  # Gravity force
+        if block['falling']:
+            vy += 1.5
         else:
-            vy *= 0.95  # Simulate slow-down friction when the object is on another object
+            vx *= 0.98
+            vy *= 0.98
 
         x += vx
         y += vy
 
-        # Handle collisions with left and right walls
         if x <= 0:
             x = 0
             vx = -vx * 0.6 if is_bouncy else 0
@@ -141,12 +126,10 @@ def apply_gravity():
             x = SCREEN_WIDTH - width
             vx = -vx * 0.6 if is_bouncy else 0
 
-        # Handle collision with the top of the screen
         if y <= 0:
             y = 0
             vy = -vy * 0.6 if is_bouncy else 0
 
-        # Handle other collisions
         collided = False
         block['support'] = None
 
@@ -189,7 +172,7 @@ def apply_gravity():
                 vy = 0
                 block['falling'] = False
 
-        # Apply friction when object isn't falling
+        # Friction logic for all objects
         if not block['falling']:
             vy = 0
             friction = 0.9 if is_bouncy else 0.8
