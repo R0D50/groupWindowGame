@@ -22,10 +22,18 @@ open_windows = []
 
 root_dir = Path(__file__).resolve().parent
 
+#Window Images
 image_path_block = root_dir / "Window_Images" / "WB.png"
 image_path_ball = root_dir / "Window_Images" / "BB.png"
+image_path_ice = root_dir / "Window_Images" / "IC.png"
 
-def open_new_window(event=None):
+#Shop Button Images
+image_path_ball_shop = root_dir / "Shop_Images" / "BBs.png"
+image_path_block_shop = root_dir / "Shop_Images" / "WBs.png"
+image_path_ice_shop = root_dir / "Shop_Images" / "ICs.png"
+
+#Wooden Block Window Creator
+def open_wood_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
     spawn_y = 50
     try:
@@ -55,6 +63,7 @@ def open_new_window(event=None):
         'vy': 0,
         'falling': True,
         'bouncy': False,
+        'slippery': False,
         'width': img_width,
         'height': img_height,
         'support': None
@@ -64,7 +73,8 @@ def open_new_window(event=None):
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
-def open_bouncy_ball_window(event=None):
+#Bouncy Ball Window Creator
+def open_ball_window(event=None):
     spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
     spawn_y = 50
     try:
@@ -98,6 +108,7 @@ def open_bouncy_ball_window(event=None):
         'vy': 0,
         'falling': True,
         'bouncy': True,
+        'slippery': False,
         'width': new_width,
         'height': new_height,
         'support': None
@@ -107,13 +118,60 @@ def open_bouncy_ball_window(event=None):
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
-def apply_gravity():
+#Ice Cube Window Creator
+def open_ice_window(event=None):
+    spawn_x = len(open_windows) * (WIDTH + MARGIN) % SCREEN_WIDTH
+    spawn_y = 50
+    try:
+        image = Image.open(image_path_ice)
+        scale_factor = 0.5
+        img_width, img_height = image.size
+        new_width = int(img_width * scale_factor)
+        new_height = int(img_height * scale_factor)
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        photo_image = ImageTk.PhotoImage(resized_image)
+    except Exception as e:
+        print(f"Error loading image: {e}")
+        photo_image = None
+        new_width, new_height = WIDTH, HEIGHT
+
+    new_window = tk.Toplevel()
+    new_window.title("Ice Cube")
+    new_window.geometry(f"{new_width}x{new_height}+{spawn_x}+{spawn_y}")
+    new_window.resizable(False, False)
+
+    if photo_image:
+        label = tk.Label(new_window, image=photo_image)
+        label.pack()
+        new_window.photo_image = photo_image
+
+    open_windows.append({
+        'window': new_window,
+        'x': spawn_x,
+        'y': spawn_y,
+        'vx': 0,
+        'vy': 0,
+        'falling': True,
+        'bouncy': False,
+        'slippery': True,
+        'width': new_width,
+        'height': new_height,
+        'support': None
+    })
+
+    new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
+    new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
+    new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
+
+#Gives Windows physics, this also houses the friction functions
+def apply_physics():
     for block in open_windows:
         win = block['window']
         x, y = block['x'], block['y']
         vx, vy = block.get('vx', 0), block.get('vy', 0)
         width, height = block['width'], block['height']
         is_bouncy = block.get('bouncy', False)
+        is_slippery = block.get('slippery', False)
 
         if block['falling']:
             vy += 1.5
@@ -180,7 +238,8 @@ def apply_gravity():
         # Friction logic for all objects
         if not block['falling']:
             vy = 0
-            friction = 0.9 if is_bouncy else 0.8
+            friction = 0.9 if is_bouncy else 0.99999 if is_slippery else 0.8
+            
             vx *= friction
             if abs(vx) < 0.2:
                 vx = 0
@@ -188,7 +247,7 @@ def apply_gravity():
         block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy})
         win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
-    shop_window.after(30, apply_gravity)
+    shop_window.after(30, apply_physics)
 
 def on_window_press(event, window):
     window.drag_data = {'x': event.x, 'y': event.y}
@@ -251,18 +310,33 @@ class ShopGUI(tk.Frame):
         self.setupShop()
 
     def setupShop(self):
+        # Configure the grid layout
         for row in range(6):
             tk.Grid.rowconfigure(self, row, weight=1)
         for col in range(5):
             tk.Grid.columnconfigure(self, col, weight=1)
 
-        block_button = tk.Button(self, bg='white', text="Wooden Block",
-            borderwidth=1, highlightthickness=0, activebackground='white', command=open_new_window)
+        # Load and keep a reference to the images to prevent garbage collection
+        self.block_image = Image.open(image_path_block_shop)
+        self.ball_image = Image.open(image_path_ball_shop)
+        self.ice_image = Image.open(image_path_ice_shop)
+
+        # Convert images to Tkinter compatible format
+        self.block_shop_img = ImageTk.PhotoImage(self.block_image)
+        self.ball_shop_img = ImageTk.PhotoImage(self.ball_image)
+        self.ice_shop_img = ImageTk.PhotoImage(self.ice_image)
+
+        # Add Wood Block button
+        block_button = tk.Button(self, text="Wooden Block", image=self.block_shop_img, compound="bottom", borderwidth=1, command=open_wood_window)
         block_button.grid(row=1, column=0, sticky=tk.E + tk.W + tk.N + tk.S)
 
-        ball_button = tk.Button(self, bg='white', text="Bouncy Ball",
-            borderwidth=1, highlightthickness=0, activebackground='white', command=open_bouncy_ball_window)
+        # Add Bouncey Ball button
+        ball_button = tk.Button(self, text="Bouncy Ball", image=self.ball_shop_img, compound="bottom", borderwidth=1, command=open_ball_window)
         ball_button.grid(row=1, column=1, sticky=tk.E + tk.W + tk.N + tk.S)
+
+        # Add Ice Cube button
+        ball_button = tk.Button(self, text="Ice Cube", image=self.ice_shop_img, compound="bottom", borderwidth=1, command=open_ice_window)
+        ball_button.grid(row=1, column=2, sticky=tk.E + tk.W + tk.N + tk.S)
 
         self.pack(expand=1)
 
@@ -271,5 +345,5 @@ shop_window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
 shop_window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
 shop = ShopGUI(shop_window)
 
-apply_gravity()
+apply_physics()
 shop_window.mainloop()
