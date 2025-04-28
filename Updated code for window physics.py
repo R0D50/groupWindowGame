@@ -110,17 +110,30 @@ def apply_gravity():
         width, height = block['width'], block['height']
         is_bouncy = block.get('bouncy', False)
 
-        # Apply gravity if falling
-        if block['falling']:
-            vy += 1.5
+        # Check if there is another object directly below this one
+        has_support = False
+        for other in open_windows:
+            if other == block:
+                continue
+            ox, oy = other['x'], other['y']
+            ow, oh = other['width'], other['height']
+
+            # Check if the object is below this one
+            if x + width > ox and x < ox + ow and y + height <= oy + 5 and oy + oh > y:
+                has_support = True
+                break
+
+        # If no object is directly below, apply gravity (falling physics)
+        if not has_support:
+            if block['falling']:
+                vy += 1.5  # Gravity force
         else:
-            vx *= 0.95  # Slows down horizontal velocity
-            vy *= 0.95  # Slows down vertical velocity
+            vy *= 0.95  # Simulate slow-down friction when the object is on another object
 
         x += vx
         y += vy
 
-        # Handle collision with left and right boundaries
+        # Handle collisions with left and right walls
         if x <= 0:
             x = 0
             vx = -vx * 0.6 if is_bouncy else 0
@@ -128,11 +141,12 @@ def apply_gravity():
             x = SCREEN_WIDTH - width
             vx = -vx * 0.6 if is_bouncy else 0
 
-        # Handle collision with top boundary
+        # Handle collision with the top of the screen
         if y <= 0:
             y = 0
             vy = -vy * 0.6 if is_bouncy else 0
 
+        # Handle other collisions
         collided = False
         block['support'] = None
 
@@ -142,31 +156,25 @@ def apply_gravity():
             ox, oy = other['x'], other['y']
             ow, oh = other['width'], other['height']
 
-            # Check if the block and ball are colliding
             if (x < ox + ow and x + width > ox and
                 y + height > oy and y < oy + oh):
                 collided = True
 
-                # Handle vertical collisions (ball hits block from above)
                 if vy > 0 and y < oy:
                     y = oy - height
                     vy = -vy * 0.6 if is_bouncy else 0
                     block['falling'] = is_bouncy and abs(vy) > 2
                     block['support'] = other
 
-                # Handle horizontal collisions (ball hits block sides)
                 elif vx > 0 and x + width > ox and x < ox + ow:
-                    vx = -vx * 0.6 if is_bouncy else 0  # Bounce off the right side
+                    vx = -vx * 0.6 if is_bouncy else 0
                 elif vx < 0 and x < ox + ow and x + width > ox:
-                    vx = -vx * 0.6 if is_bouncy else 0  # Bounce off the left side
+                    vx = -vx * 0.6 if is_bouncy else 0
 
-                # Reset vertical velocity if the ball is moving down and slides off the block
                 if vy == 0 and not block['falling']:
-                    vy = 1.5  # Set falling velocity if ball is resting
-
+                    vy = 1.5
                 break
 
-        # Ground collision
         ground_y = SCREEN_HEIGHT - height - FLOAT_ABOVE_BOTTOM
         if y >= ground_y:
             y = ground_y
@@ -181,10 +189,13 @@ def apply_gravity():
                 vy = 0
                 block['falling'] = False
 
-        # After bouncing or falling, ensure the ball doesn't float and stops sliding
+        # Apply friction when object isn't falling
         if not block['falling']:
-            vy = 0  # Stop vertical movement if not falling
-            vx = 0  # Stop horizontal movement if not falling
+            vy = 0
+            friction = 0.9 if is_bouncy else 0.8
+            vx *= friction
+            if abs(vx) < 0.2:
+                vx = 0
 
         block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy})
         win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
@@ -211,7 +222,6 @@ def on_window_drag(event, window):
             block['vx'] = dx
             block['vy'] = dy
 
-            # Move supported blocks too
             for other in open_windows:
                 if other.get('support') == block:
                     other['x'] += dx
@@ -233,11 +243,17 @@ def on_window_release(event, window):
         if block['window'] == window:
             block['x'] = window.winfo_x()
             block['y'] = window.winfo_y()
+
+            # Flick momentum for all objects
+            max_flick_velocity = 30
+            block['vx'] = max(-max_flick_velocity, min(block['vx'], max_flick_velocity))
+            block['vy'] = max(-max_flick_velocity, min(block['vy'], max_flick_velocity))
+            block['falling'] = True
+
             window.after(100, lambda: setFalling(block))
             break
 
 def setFalling(block):
-    # Ensure it only sets the block as falling if it is on the ground
     if block['y'] < SCREEN_HEIGHT:
         block['falling'] = True
 
@@ -268,5 +284,4 @@ shop_window.geometry(f"{SHOP_WIDTH}x{SHOP_HEIGHT}")
 shop = ShopGUI(shop_window)
 
 apply_gravity()
-
 shop_window.mainloop()
