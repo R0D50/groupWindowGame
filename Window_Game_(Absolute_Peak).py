@@ -164,6 +164,7 @@ def open_ice_window(event=None):
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
 #Gives Windows physics, this also houses the friction functions
+
 def apply_physics():
     for block in open_windows:
         win = block['window']
@@ -172,6 +173,93 @@ def apply_physics():
         width, height = block['width'], block['height']
         is_bouncy = block.get('bouncy', False)
         is_slippery = block.get('slippery', False)
+
+        # Always apply gravity
+        vy += 1.5
+
+        x += vx
+        y += vy
+
+        # Handle collisions with screen boundaries
+        if x <= 0:
+            x = 0
+            vx = -vx * 0.6 if is_bouncy else 0
+        elif x + width >= SCREEN_WIDTH:
+            x = SCREEN_WIDTH - width
+            vx = -vx * 0.6 if is_bouncy else 0
+
+        if y <= 0:
+            y = 0
+            vy = -vy * 0.6 if is_bouncy else 0
+
+        collided = False
+        block['support'] = None
+
+        # Handle collisions with other blocks
+        for other in open_windows:
+            if other == block:
+                continue
+            ox, oy = other['x'], other['y']
+            ow, oh = other['width'], other['height']
+
+            if (x < ox + ow and x + width > ox and
+                y + height > oy and y < oy + oh):
+                collided = True
+
+                if vy > 0 and y < oy:
+                    y = oy - height
+                    vy = -vy * 0.6 if is_bouncy else 0
+                    block['support'] = other
+
+                elif vx > 0 and x + width > ox and x < ox + ow:
+                    vx = -vx * 0.6 if is_bouncy else 0
+                elif vx < 0 and x < ox + ow and x + width > ox:
+                    vx = -vx * 0.6 if is_bouncy else 0
+
+                break
+
+        # Handle collisions with the ground
+        ground_y = SCREEN_HEIGHT - height - FLOAT_ABOVE_BOTTOM
+        if y >= ground_y:
+            y = ground_y
+            if is_bouncy:
+                if abs(vy) > 2:
+                    vy = -vy * 0.6
+                else:
+                    vy = 0
+            else:
+                vy = 0
+
+        # Friction logic for all objects
+        if y == ground_y:
+            if is_slippery:
+                friction = 0.99999  # High friction for slippery objects
+            else:
+                friction = 0.8  # Standard friction for wooden blocks
+            vx *= friction
+            if abs(vx) < 0.2:
+                vx = 0
+        
+
+        block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy})
+        win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
+
+    shop_window.after(30, apply_physics)
+
+'''
+def apply_physics():
+    for block in open_windows:
+        win = block['window']
+        x, y = block['x'], block['y']
+        vx, vy = block.get('vx', 0), block.get('vy', 0)
+        width, height = block['width'], block['height']
+        is_bouncy = block.get('bouncy', False)
+        is_slippery = block.get('slippery', False)
+
+        #Always apply gravity
+        vy +=1.5
+        x += vx
+        y += vy
 
         if block['falling']:
             vy += 1.5
@@ -248,6 +336,7 @@ def apply_physics():
         win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
     shop_window.after(30, apply_physics)
+'''
 
 def on_window_press(event, window):
     window.drag_data = {'x': event.x, 'y': event.y}
@@ -265,7 +354,7 @@ def on_window_drag(event, window):
         if block['window'] == window:
             block['x'] = x
             block['y'] = y
-            block['falling'] = False
+            #block['falling'] = False
             block['vx'] = dx
             block['vy'] = dy
 
@@ -297,7 +386,7 @@ def on_window_release(event, window):
             block['vy'] = max(-max_flick_velocity, min(block['vy'], max_flick_velocity))
             block['falling'] = True
 
-            window.after(100, lambda: setFalling(block))
+           # window.after(100, lambda: setFalling(block))
             break
 
 def setFalling(block):
