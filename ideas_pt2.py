@@ -79,12 +79,21 @@ def create_window(title, image_path, is_bouncy=False, is_slippery=False, scale=1
 
     open_windows.append(block)
 
+    # Bind window close event to remove the block from open_windows
+    new_window.protocol("WM_DELETE_WINDOW", lambda w=new_window: close_window(w))
+
     new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
     if title == "Ice Cube":
         start_melting(block)
+
+def close_window(window):
+    global open_windows
+    # Remove window block from the list
+    open_windows = [block for block in open_windows if block['window'] != window]
+    window.destroy()
 
 def try_purchase(item_name, creation_func):
     global SHOP_POINTS
