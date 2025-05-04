@@ -33,6 +33,7 @@ image_path_ice = root_dir / "Window_Images" / "IC.png"
 image_path_block_shop = root_dir / "Shop_Images" / "WBs.png"
 image_path_ball_shop = root_dir / "Shop_Images" / "BBs.png"
 image_path_ice_shop = root_dir / "Shop_Images" / "ICs.png"
+image_path_background_shop = root_dir / "Shop_Images" / "Shop_bg.png"
 
 def load_image(path, scale=1.0):
     try:
@@ -78,10 +79,7 @@ def create_window(title, image_path, is_bouncy=False, is_slippery=False, scale=1
     }
 
     open_windows.append(block)
-
-    # Bind window close event to remove the block from open_windows
     new_window.protocol("WM_DELETE_WINDOW", lambda w=new_window: close_window(w))
-
     new_window.bind("<ButtonPress-1>", lambda e, w=new_window: on_window_press(e, w))
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
@@ -91,7 +89,6 @@ def create_window(title, image_path, is_bouncy=False, is_slippery=False, scale=1
 
 def close_window(window):
     global open_windows
-    # Remove window block from the list
     open_windows = [block for block in open_windows if block['window'] != window]
     window.destroy()
 
@@ -124,12 +121,11 @@ def apply_physics():
         vy += 1.5  # Gravity
         x += vx
         y += vy
-
         block['support'] = None
         grounded = False
-        friction = 0.7  # Default friction
+        friction = 0.7
 
-        # Collision detection and response
+        # Check for collisions with other blocks
         for other in open_windows:
             if other == block:
                 continue
@@ -140,78 +136,86 @@ def apply_physics():
             overlap_y = (y + height > oy) and (y < oy + oh)
 
             if overlap_x and overlap_y:
-                # Handle falling collision
                 if vy > 0 and y + height - vy <= oy:
                     y = oy - height
                     if is_bouncy and abs(vy) > 3:
-                        vy = -vy * 0.6  # Bounce on impact
+                        vy = -vy * 0.6  # Bounce vertically
+                        if block['type'] == "Ice Cube":  # Points for Ice Cube bounce
+                            SHOP_POINTS += 10
+                            update_shop_ui()
                     else:
-                        vy = 0  # Stop downward movement
+                        vy = 0
                     grounded = True
                     block['support'] = other
                     friction = 0.98 if other['slippery'] else 0.7
                     if not block['grounded'] and block['type'] != "Ice Cube":
-                        SHOP_POINTS += 5  # Earn points for landing
+                        SHOP_POINTS += 5
                         update_shop_ui()
 
                 # Handle horizontal collision
-                elif vx > 0:
+                if vx > 0:  # Colliding with left side of the other object
                     x = ox - width
-                    vx = -vx * 0.6 if is_bouncy else 0
-                elif vx < 0:
+                    if block['type'] == "Ice Cube":
+                        vx = -vx * 1.1  # Ice cube bounces with more velocity
+                        SHOP_POINTS += 10  # Points for bounce off other objects
+                        update_shop_ui()
+                    else:
+                        vx = 0  # Regular object stops at the wall
+                elif vx < 0:  # Colliding with right side of the other object
                     x = ox + ow
-                    vx = -vx * 0.6 if is_bouncy else 0
+                    if block['type'] == "Ice Cube":
+                        vx = -vx * 1.1  # Ice cube bounces with more velocity
+                        SHOP_POINTS += 10  # Points for bounce off other objects
+                        update_shop_ui()
+                    else:
+                        vx = 0  # Regular object stops at the wall
 
-        # Ground collision handling
-        ground_y = SCREEN_HEIGHT - height - FLOAT_ABOVE_BOTTOM
-        if y >= ground_y:
-            y = ground_y
+        # Screen bottom boundary check
+        if y + height >= SCREEN_HEIGHT - FLOAT_ABOVE_BOTTOM:
+            y = SCREEN_HEIGHT - FLOAT_ABOVE_BOTTOM - height
             if is_bouncy and abs(vy) > 3:
-                vy = -vy * 0.6  # Bounce on hitting the ground
+                vy = -vy * 0.6  # Bounce vertically
             else:
-                vy = 0  # Stop falling
-            grounded = True
-            friction = 0.95 if is_slippery else 0.7
+                vy = 0
+                grounded = True
+                friction = 0.7
+            if not block['grounded'] and block['type'] != "Ice Cube":
+                SHOP_POINTS += 5
+                update_shop_ui()
 
-        # Wall collision handling
-        left_x = 0
-        right_x = SCREEN_WIDTH - width
-        if x <= left_x:
-            x = left_x
-            if is_slippery:
-                vx = abs(vx) or 1  # Ensure it moves
+        # Wall collision: Bounce or stop movement for objects hitting the walls
+        if x <= 0:  # Left wall
+            x = 0
+            if block['type'] == "Ice Cube":
+                vx = -vx * 1.1  # Ice cubes bounce with more velocity
+                SHOP_POINTS += 10  # Points for bounce off wall
+                update_shop_ui()
             else:
-                vx = -vx * 0.6 if is_bouncy else 0
-
-        elif x >= right_x:
-            x = right_x
-            if is_slippery:
-                vx = -abs(vx) or -1
+                vx = 0  # Regular objects stop at the wall
+        elif x + width >= SCREEN_WIDTH:  # Right wall
+            x = SCREEN_WIDTH - width
+            if block['type'] == "Ice Cube":
+                vx = -vx * 1.1  # Ice cubes bounce with more velocity
+                SHOP_POINTS += 10  # Points for bounce off wall
+                update_shop_ui()
             else:
-                vx = -vx * 0.6 if is_bouncy else 0
+                vx = 0  # Regular objects stop at the wall
 
-        # Top collision handling
-        top_y = 0
-        if y <= top_y:
-            y = top_y
-            vy = 0
+        # Apply a bit less friction to ice cubes (slower slowdown)
+        if block['type'] == "Ice Cube" and grounded:
+            vx *= 0.97  # Less friction for ice cubes to slow down more slowly
 
-        # Apply friction when grounded
-        if grounded:
-            if is_slippery:
-                vx = vx or 1
-                vx *= 0.995  # Slippery friction
-            else:
-                vx *= friction
-            if abs(vx) < 0.1:  # Stop moving if friction is too high
-                vx = 0
+        # Apply friction for non-ice objects (objects on the ground)
+        if grounded and not is_slippery and block['type'] != "Ice Cube":
+            vx *= friction  # Friction slows down the object
 
-        # Update block position and velocity
-        block['grounded'] = grounded
+        # Update block state
         block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy})
         win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
-    # Call the function again to apply physics continuously
+        # Mark as grounded
+        block['grounded'] = grounded
+
     shop_window.after(30, apply_physics)
 
 def start_melting(block):
@@ -224,15 +228,14 @@ def start_melting(block):
             open_windows.remove(block)
             window.destroy()
             return
+
         block['width'] = int(w * 0.98)
         block['height'] = int(h * 0.98)
-
-        # Clamp position to stay on-screen
         block['x'] = min(max(0, block['x']), SCREEN_WIDTH - block['width'])
         block['y'] = min(max(0, block['y']), SCREEN_HEIGHT - block['height'] - FLOAT_ABOVE_BOTTOM)
-
         window.geometry(f"{block['width']}x{block['height']}+{int(block['x'])}+{int(block['y'])}")
         window.after(300, melt)
+
     melt()
 
 def on_window_press(event, window):
@@ -282,30 +285,44 @@ def update_shop_ui():
 
 class ShopGUI(tk.Frame):
     def __init__(self, master):
-        super().__init__(master, bg='white')
-        self.setup_shop()
+        super().__init__(master)
+        self.master = master
+        self.canvas = tk.Canvas(self)
+        self.canvas.pack(fill="both", expand=True)
+        self.bg_image_orig = Image.open(image_path_background_shop)
+        self.bg_image_tk = None
+        self.bg_image_id = None
 
-    def setup_shop(self):
-        for row in range(6):
-            self.rowconfigure(row, weight=1)
-        for col in range(5):
-            self.columnconfigure(col, weight=1)
-
+        # Load item images
         self.block_shop_img = ImageTk.PhotoImage(Image.open(image_path_block_shop))
         self.ball_shop_img = ImageTk.PhotoImage(Image.open(image_path_ball_shop))
         self.ice_shop_img = ImageTk.PhotoImage(Image.open(image_path_ice_shop))
 
+        # Create buttons
         shop_buttons["Wooden Block"] = tk.Button(self, text="Wooden Block ($10)", image=self.block_shop_img, compound="bottom", command=open_wood_window)
-        shop_buttons["Wooden Block"].grid(row=1, column=0, sticky="nsew")
-
         shop_buttons["Bouncy Ball"] = tk.Button(self, text="Bouncy Ball ($20)", image=self.ball_shop_img, compound="bottom", command=open_ball_window)
-        shop_buttons["Bouncy Ball"].grid(row=1, column=1, sticky="nsew")
-
         shop_buttons["Ice Cube"] = tk.Button(self, text="Ice Cube ($15)", image=self.ice_shop_img, compound="bottom", command=open_ice_window)
-        shop_buttons["Ice Cube"].grid(row=1, column=2, sticky="nsew")
 
-        self.pack(expand=1)
+        # Place buttons
+        self.canvas.create_window(10, 10, anchor="nw", window=shop_buttons["Wooden Block"])
+        self.canvas.create_window(140, 10, anchor="nw", window=shop_buttons["Bouncy Ball"])
+        self.canvas.create_window(270, 10, anchor="nw", window=shop_buttons["Ice Cube"])
 
+        self.pack(fill="both", expand=True)
+        self.master.bind("<Configure>", self.on_resize)
+        self.on_resize()
+
+    def on_resize(self, event=None):
+        width = self.master.winfo_width()
+        height = self.master.winfo_height()
+        resized = self.bg_image_orig.resize((width, height), Image.Resampling.LANCZOS)
+        self.bg_image_tk = ImageTk.PhotoImage(resized)
+        if self.bg_image_id:
+            self.canvas.delete(self.bg_image_id)
+        self.bg_image_id = self.canvas.create_image(0, 0, image=self.bg_image_tk, anchor="nw")
+        self.canvas.tag_lower(self.bg_image_id)
+
+# Run the application
 if __name__ == "__main__":
     shop_buttons = {}
     shop_window = tk.Tk()
