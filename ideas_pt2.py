@@ -112,7 +112,7 @@ def apply_physics():
         width, height = block['width'], block['height']
         is_bouncy, is_slippery = block['bouncy'], block['slippery']
 
-        vy += 1.5  # Gravity effect
+        vy += 1.5  # Gravity
         x += vx
         y += vy
 
@@ -120,76 +120,89 @@ def apply_physics():
         grounded = False
         friction = 0.7  # Default friction
 
-        # Handle object-to-object collisions
+        # Collision detection and response
         for other in open_windows:
             if other == block:
                 continue
             ox, oy = other['x'], other['y']
             ow, oh = other['width'], other['height']
 
-            if (x < ox + ow and x + width > ox and
-                y + height > oy and y < oy + oh):
-                if vy > 0 and y < oy:
+            overlap_x = (x < ox + ow) and (x + width > ox)
+            overlap_y = (y + height > oy) and (y < oy + oh)
+
+            if overlap_x and overlap_y:
+                # Handle falling collision
+                if vy > 0 and y + height - vy <= oy:
                     y = oy - height
                     if is_bouncy and abs(vy) > 3:
-                        vy = -vy * 0.6  # Bounce effect
+                        vy = -vy * 0.6  # Bounce on impact
                     else:
-                        vy = 0
-                    block['support'] = other
+                        vy = 0  # Stop downward movement
                     grounded = True
+                    block['support'] = other
                     friction = 0.98 if other['slippery'] else 0.7
                     if not block['grounded'] and block['type'] != "Ice Cube":
-                        SHOP_POINTS += 5
+                        SHOP_POINTS += 5  # Earn points for landing
                         update_shop_ui()
+
+                # Handle horizontal collision
                 elif vx > 0:
+                    x = ox - width
                     vx = -vx * 0.6 if is_bouncy else 0
                 elif vx < 0:
+                    x = ox + ow
                     vx = -vx * 0.6 if is_bouncy else 0
-                break
 
-        # Boundary collisions (confining to the 1920x1080 screen)
+        # Ground collision handling
         ground_y = SCREEN_HEIGHT - height - FLOAT_ABOVE_BOTTOM
-        right_x = SCREEN_WIDTH - width
-        left_x = 0
-        top_y = 0
-
         if y >= ground_y:
             y = ground_y
             if is_bouncy and abs(vy) > 3:
-                vy = -vy * 0.6  # Bounce effect
+                vy = -vy * 0.6  # Bounce on hitting the ground
             else:
-                vy = 0
+                vy = 0  # Stop falling
             grounded = True
             friction = 0.95 if is_slippery else 0.7
 
-        if x <= left_x:  # Left boundary
+        # Wall collision handling
+        left_x = 0
+        right_x = SCREEN_WIDTH - width
+        if x <= left_x:
             x = left_x
-            if is_bouncy and abs(vx) > 3:
-                vx = -vx * 0.6  # Bounce effect
+            if is_slippery:
+                vx = abs(vx) or 1  # Ensure it moves
             else:
-                vx = 0
-        elif x >= right_x:  # Right boundary
+                vx = -vx * 0.6 if is_bouncy else 0
+
+        elif x >= right_x:
             x = right_x
-            if is_bouncy and abs(vx) > 3:
-                vx = -vx * 0.6  # Bounce effect
+            if is_slippery:
+                vx = -abs(vx) or -1
             else:
-                vx = 0
+                vx = -vx * 0.6 if is_bouncy else 0
 
-        if y <= top_y:  # Top boundary (optional, could be removed if no top bound needed)
+        # Top collision handling
+        top_y = 0
+        if y <= top_y:
             y = top_y
-            vy = 0  # No bounce on top
+            vy = 0
 
+        # Apply friction when grounded
         if grounded:
-            vx *= friction
-            if abs(vx) < 0.1:
+            if is_slippery:
+                vx = vx or 1
+                vx *= 0.995  # Slippery friction
+            else:
+                vx *= friction
+            if abs(vx) < 0.1:  # Stop moving if friction is too high
                 vx = 0
 
-        # Update block position and velocities
+        # Update block position and velocity
         block['grounded'] = grounded
         block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy})
         win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
-    # Recursively call the physics function every 30ms
+    # Call the function again to apply physics continuously
     shop_window.after(30, apply_physics)
 
 def start_melting(block):
@@ -204,6 +217,11 @@ def start_melting(block):
             return
         block['width'] = int(w * 0.98)
         block['height'] = int(h * 0.98)
+
+        # Clamp position to stay on-screen
+        block['x'] = min(max(0, block['x']), SCREEN_WIDTH - block['width'])
+        block['y'] = min(max(0, block['y']), SCREEN_HEIGHT - block['height'] - FLOAT_ABOVE_BOTTOM)
+
         window.geometry(f"{block['width']}x{block['height']}+{int(block['x'])}+{int(block['y'])}")
         window.after(300, melt)
     melt()
