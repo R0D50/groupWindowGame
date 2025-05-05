@@ -10,6 +10,7 @@ FLOAT_ABOVE_BOTTOM = 25
 SHOP_POINTS = 100
 SHOP_WIDTH = 400
 SHOP_HEIGHT = 200
+GRAVITY = 1.5
 
 ITEM_PRICES = {
     "Wooden Block": 10,
@@ -17,10 +18,10 @@ ITEM_PRICES = {
     "Ice Cube": 15
 }
 
-_temp_root = tk.Tk()
-SCREEN_WIDTH = _temp_root.winfo_screenwidth()
-SCREEN_HEIGHT = _temp_root.winfo_screenheight()
-_temp_root.destroy()
+TEMP_ROOT = tk.Tk()
+SCREEN_WIDTH = TEMP_ROOT.winfo_screenwidth()
+SCREEN_HEIGHT = TEMP_ROOT.winfo_screenheight()
+TEMP_ROOT.destroy()
 
 open_windows = []
 root_dir = Path(__file__).resolve().parent
@@ -117,126 +118,128 @@ def apply_physics():
         vx, vy = block['vx'], block['vy']
         width, height = block['width'], block['height']
         is_bouncy, is_slippery = block['bouncy'], block['slippery']
+        is_grounded = block.get('grounded', False)  # Keep track of the previous grounded state
 
-        vy += 1.5  # Gravity
+        vy += 1.5  # Apply gravity
         x += vx
         y += vy
+
         block['support'] = None
         grounded = False
-        friction = 0.7
+        friction = 0.7  # Default friction
 
-        # Check for collisions with other blocks
+        # Handle collisions with screen boundaries (walls)
+        if x <= 0:  # Left wall
+            x = 0
+            if is_bouncy:
+                vx = -vx * 1.1  # Bouncy Ball bounces with more velocity
+                vx *= 0.9  # Apply friction
+                SHOP_POINTS += 10  # Points for bounce off wall
+                update_shop_ui()
+            elif block['type'] == "Ice Cube":
+                vx = -vx * 1.1  # Ice cube bounces with more velocity
+                SHOP_POINTS += 10  # Points for bounce off wall
+                update_shop_ui()
+            else:
+                vx = 0  # Regular objects stop at the wall
+
+        elif x + width >= SCREEN_WIDTH:  # Right wall
+            x = SCREEN_WIDTH - width
+            if is_bouncy:
+                vx = -vx * 1.1  # Bouncy Ball bounces with more velocity
+                vx *= 0.9  # Apply friction
+                SHOP_POINTS += 10  # Points for bounce off wall
+                update_shop_ui()
+            elif block['type'] == "Ice Cube":
+                vx = -vx * 1.1  # Ice cube bounces with more velocity
+                SHOP_POINTS += 10  # Points for bounce off wall
+                update_shop_ui()
+            else:
+                vx = 0  # Regular objects stop at the wall
+
+        if y <= 0:  # Top boundary
+            y = 0
+            vy = -vy * 0.6 if is_bouncy else 0
+
+        # Handle collision with other blocks
         for other in open_windows:
             if other == block:
                 continue
             ox, oy = other['x'], other['y']
             ow, oh = other['width'], other['height']
 
-            overlap_x = (x < ox + ow) and (x + width > ox)
-            overlap_y = (y + height > oy) and (y < oy + oh)
-
-            if overlap_x and overlap_y:
-                if vy > 0 and y + height - vy <= oy:
+            if (x < ox + ow and x + width > ox and y + height > oy and y < oy + oh):
+                if vy > 0 and y + height - vy <= oy:  # Ground collision
                     y = oy - height
                     if is_bouncy and abs(vy) > 3:
                         vy = -vy * 0.6  # Bounce vertically
-                        if block['type'] == "Ice Cube":  # Points for Ice Cube bounce
-                            SHOP_POINTS += 10
+                        vx *= 0.9  # Slow down horizontally after bounce
+                        if block['type'] == "Ice Cube":
+                            SHOP_POINTS += 10  # Points for Ice Cube bounce
                             update_shop_ui()
                     else:
                         vy = 0
                     grounded = True
                     block['support'] = other
                     friction = 0.98 if other['slippery'] else 0.7
-                    if not block['grounded'] and block['type'] != "Ice Cube":
-                        SHOP_POINTS += 5
+                    if not is_grounded and block['type'] != "Ice Cube":  # Only award points when it just landed
+                        SHOP_POINTS += 5  # Points for landing on a block
                         update_shop_ui()
 
-                # Handle horizontal collision
-                if vx > 0:  # Colliding with left side of the other object
+                # Horizontal collisions (left or right)
+                elif vx > 0:  # Colliding with left side of the other object
                     x = ox - width
-                    if block['type'] == "Ice Cube":
-                        vx = -vx * 1.1  # Ice cube bounces with more velocity
+                    if block['type'] == "Bouncy Ball" or block['type'] == "Ice Cube":
+                        vx = -vx * 1.1  # Bounce with more velocity
+                        vx *= 0.9  # Apply friction after bounce
                         SHOP_POINTS += 10  # Points for bounce off other objects
                         update_shop_ui()
                     else:
                         vx = 0  # Regular object stops at the wall
                 elif vx < 0:  # Colliding with right side of the other object
                     x = ox + ow
-                    if block['type'] == "Ice Cube":
-                        vx = -vx * 1.1  # Ice cube bounces with more velocity
+                    if block['type'] == "Bouncy Ball" or block['type'] == "Ice Cube":
+                        vx = -vx * 1.1  # Bounce with more velocity
+                        vx *= 0.9  # Apply friction after bounce
                         SHOP_POINTS += 10  # Points for bounce off other objects
                         update_shop_ui()
                     else:
                         vx = 0  # Regular object stops at the wall
 
-        # Screen bottom boundary check
-        if y + height >= SCREEN_HEIGHT - FLOAT_ABOVE_BOTTOM:
-            y = SCREEN_HEIGHT - FLOAT_ABOVE_BOTTOM - height
+        # Ground collision check (bottom of the screen)
+        ground_y = SCREEN_HEIGHT - height - FLOAT_ABOVE_BOTTOM
+        if y >= ground_y:
+            y = ground_y
             if is_bouncy and abs(vy) > 3:
                 vy = -vy * 0.6  # Bounce vertically
             else:
                 vy = 0
-                grounded = True
-                friction = 0.7
-            if not block['grounded'] and block['type'] != "Ice Cube":
-                SHOP_POINTS += 5
+            grounded = True
+            friction = 0.95 if is_slippery else 0.7
+
+        # Apply friction if the object is grounded
+        if grounded:
+            if is_slippery:
+                friction = 0.99999  # High friction for slippery objects
+            vx *= friction
+            if abs(vx) < 0.1:  # Stop object if it slows down too much
+                vx = 0
+
+        # Check if points should be awarded for bouncing on the ground
+        if grounded and not is_grounded:
+            if block['type'] == "Bouncy Ball" or block['type'] == "Ice Cube":
+                SHOP_POINTS += 10  # Points for bouncing on the ground
                 update_shop_ui()
 
-        # Wall collision: Bounce or stop movement for objects hitting the walls
-        if x <= 0:  # Left wall
-            x = 0
-            if block['type'] == "Ice Cube":
-                vx = -vx * 1.1  # Ice cubes bounce with more velocity
-                SHOP_POINTS += 10  # Points for bounce off wall
-                update_shop_ui()
-            else:
-                vx = 0  # Regular objects stop at the wall
-        elif x + width >= SCREEN_WIDTH:  # Right wall
-            x = SCREEN_WIDTH - width
-            if block['type'] == "Ice Cube":
-                vx = -vx * 1.1  # Ice cubes bounce with more velocity
-                SHOP_POINTS += 10  # Points for bounce off wall
-                update_shop_ui()
-            else:
-                vx = 0  # Regular objects stop at the wall
-
-        # Apply a bit less friction to ice cubes (slower slowdown)
-        if block['type'] == "Ice Cube" and grounded:
-            vx *= 0.97  # Less friction for ice cubes to slow down more slowly
-
-        # Apply friction for non-ice objects (objects on the ground)
-        if grounded and not is_slippery and block['type'] != "Ice Cube":
-            vx *= friction  # Friction slows down the object
-
-        # Update block state
+        # Update block state and position
         block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy})
         win.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
-        # Mark as grounded
+        # Mark block as grounded
         block['grounded'] = grounded
 
+    # Re-run the physics calculation after a short delay for smooth animation
     shop_window.after(30, apply_physics)
-
-def start_melting(block):
-    def melt():
-        if block not in open_windows:
-            return
-        window = block['window']
-        w, h = block['width'], block['height']
-        if w <= 10 or h <= 10:
-            open_windows.remove(block)
-            window.destroy()
-            return
-
-        block['width'] = int(w * 0.98)
-        block['height'] = int(h * 0.98)
-        block['x'] = min(max(0, block['x']), SCREEN_WIDTH - block['width'])
-        block['y'] = min(max(0, block['y']), SCREEN_HEIGHT - block['height'] - FLOAT_ABOVE_BOTTOM)
-        window.geometry(f"{block['width']}x{block['height']}+{int(block['x'])}+{int(block['y'])}")
-        window.after(300, melt)
-
-    melt()
 
 def on_window_press(event, window):
     window.drag_data = {'x': event.x, 'y': event.y}
@@ -276,6 +279,26 @@ def on_window_release(event, window):
             block['vy'] = max(-30, min(block['vy'], 30))
             block['falling'] = True
             break
+
+def start_melting(block):
+    def melt():
+        if block not in open_windows:
+            return
+        window = block['window']
+        w, h = block['width'], block['height']
+        if w <= 10 or h <= 10:
+            open_windows.remove(block)
+            window.destroy()
+            return
+
+        block['width'] = int(w * 0.98)
+        block['height'] = int(h * 0.98)
+        block['x'] = min(max(0, block['x']), SCREEN_WIDTH - block['width'])
+        block['y'] = min(max(0, block['y']), SCREEN_HEIGHT - block['height'] - FLOAT_ABOVE_BOTTOM)
+        window.geometry(f"{block['width']}x{block['height']}+{int(block['x'])}+{int(block['y'])}")
+        window.after(300, melt)
+
+    melt()
 
 def update_shop_ui():
     shop_window.title(f"Window Shop: Your Points = {SHOP_POINTS}")
@@ -322,6 +345,13 @@ class ShopGUI(tk.Frame):
         self.bg_image_id = self.canvas.create_image(0, 0, image=self.bg_image_tk, anchor="nw")
         self.canvas.tag_lower(self.bg_image_id)
 
+# New function to increment SHOP_POINTS every second
+def increment_points():
+    global SHOP_POINTS
+    SHOP_POINTS += 1
+    update_shop_ui()  # Update the shop UI to reflect the new points
+    shop_window.after(1000, increment_points)  # Call this function again after 1 second
+
 # Run the application
 if __name__ == "__main__":
     shop_buttons = {}
@@ -331,4 +361,8 @@ if __name__ == "__main__":
     ShopGUI(shop_window)
     update_shop_ui()
     apply_physics()
+
+    # Start the points incrementing loop
+    increment_points()
+
     shop_window.mainloop()
