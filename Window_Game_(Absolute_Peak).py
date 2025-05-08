@@ -11,10 +11,10 @@ class GameConfig:
     WIDTH = 250
     HEIGHT = 100
     MARGIN = 0
-    FLOAT_ABOVE_BOTTOM = 25
+    FLOAT_ABOVE_BOTTOM = 0
     SHOP_POINTS = 500
-    SHOP_WIDTH = 400
-    SHOP_HEIGHT = 400
+    SHOP_WIDTH = 600
+    SHOP_HEIGHT = 300
     GRAVITY = 1.5
     ITEM_PRICES = {
         "Wooden Block": 10,
@@ -46,7 +46,7 @@ image_paths = {
     "WBs": root_dir / "Shop_Images" / "WBs.png",
     "BBs": root_dir / "Shop_Images" / "BBs.png",
     "ICs": root_dir / "Shop_Images" / "ICs.png",
-    "Shop_bg": root_dir / "Shop_Images" / "Shop_bg.png",
+    "Shop_bg": root_dir / "Window_Images" / "Main_Background.png",
     "Apple": root_dir / "Slot_Images" / "AP.png",
     "Bell": root_dir / "Slot_Images" / "BL.png",
     "Bar": root_dir / "Slot_Images" / "BR.png",
@@ -80,6 +80,7 @@ def create_window(title, image_path, is_bouncy=False, is_slippery=False, scale=1
     new_window.title(title)
     new_window.geometry(f"{img_width}x{img_height}+{spawn_x}+{spawn_y}")
     new_window.resizable(False, False)
+    new_window.overrideredirect(True)
 
     if photo_image:
         label = tk.Label(new_window, image=photo_image)
@@ -325,13 +326,13 @@ def apply_physics():
                 # Ice Cube behavior: Slide along the wall
                 if block['type'] == "Ice Cube" and not block['bounced'] and not block['grounded']:
                     # Only bounce when grounded
-                    if is_grounded:
-                        GameConfig.SHOP_POINTS += 10
-                        block['bounced'] = True  # Mark that the Ice Cube has bounced off the wall
-                        update_shop_ui()
+                    #if is_grounded:
+                    GameConfig.SHOP_POINTS += 10
+                    block['bounced'] = True  # Mark that the Ice Cube has bounced off the wall
+                    update_shop_ui()
 
                 # Sliding effect: Apply velocity reduction when the ice cube slides along the wall
-                vx = -vx * 1.1  # Slightly reverse the horizontal velocity
+                vx = -vx * 0.9  # Slightly reverse the horizontal velocity
                 vx *= 0.9  # Reduce speed as it slides down
             else:
                 vx = 0
@@ -348,11 +349,11 @@ def apply_physics():
                     grounded = True
                 elif vx > 0:
                     x = ox - width
-                    vx = -vx * 1.1 if bouncy else 0
+                    vx = -vx * 0.9 if bouncy else 0.9 if slippery else 0
                     vx *= 0.9
                 elif vx < 0:
                     x = ox + ow
-                    vx = -vx * 1.1 if bouncy else 0
+                    vx = -vx * 0.9 if bouncy else 0.9 if slippery else 0
                     vx *= 0.9
 
         # Ground check for ice cube and other objects
@@ -364,7 +365,7 @@ def apply_physics():
             friction = 0.95 if slippery else 0.7
 
         if grounded:
-            vx *= 0.99999 if slippery else friction
+            vx *= 0.995 if slippery else friction
             if abs(vx) < 0.1:
                 vx = 0
 
