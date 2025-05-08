@@ -1,8 +1,10 @@
-# Place this at the top with your other imports
+# === Imports ===
 import tkinter as tk
 from PIL import Image, ImageTk
 from pathlib import Path
 import random
+import math
+
 
 # === Configuration ===
 class GameConfig:
@@ -20,7 +22,8 @@ class GameConfig:
         "Ice Cube": 15,
         "Slot Machine": 75,
         "Play Slot Machine": 25,
-        "Spin Slot Machine": 25
+        "Spin Slot Machine": 25,
+        "Impulse Grenade": 50  # New item
     }
 
 # === Screen Setup ===
@@ -51,7 +54,8 @@ image_paths = {
     "Melon": root_dir / "Slot_Images" / "ML.png",
     "Orange": root_dir / "Slot_Images" / "OR.png",
     "Strawberry": root_dir / "Slot_Images" / "SB.png",
-    "Coin": root_dir / "Slot_Images" / "CN.png"
+    "Coin": root_dir / "Slot_Images" / "CN.png",
+    "Slot_bg": root_dir / "Slot_Images" / "SlotMachine.png"
 }
 
 # === Utilities ===
@@ -116,7 +120,7 @@ def close_window(window):
     open_windows = [b for b in open_windows if b['window'] != window]
     window.destroy()
 
-# === Purchasing ===
+# === Purchasing Functions ===
 def try_purchase(item_name, creation_func):
     cost = GameConfig.ITEM_PRICES[item_name]
     if GameConfig.SHOP_POINTS >= cost:
@@ -133,6 +137,53 @@ def open_ball_window(event=None):
 def open_ice_window(event=None):
     try_purchase("Ice Cube", lambda: create_window("Ice Cube", image_paths["Ice Cube"], is_slippery=True, scale=0.5))
 
+# === NEW: Impulse Grenade ===
+def open_impulse_grenade(event=None):
+    try_purchase("Impulse Grenade", create_impulse_grenade)
+
+def create_impulse_grenade():
+    def on_explode(grenade_block):
+        if grenade_block not in open_windows:
+            return
+
+        gx = grenade_block['x'] + grenade_block['width'] / 2
+        gy = grenade_block['y'] + grenade_block['height'] / 2
+        radius = 500
+        max_force = 150
+
+        for other in open_windows:
+            if other == grenade_block or other.get('floating'):
+                continue
+
+            ox = other['x'] + other['width'] / 2
+            oy = other['y'] + other['height'] / 2
+            dx = ox - gx
+            dy = oy - gy
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+
+            if dist < radius and dist > 0:
+                angle = math.atan2(dy, dx)
+                force = max_force * (1 - dist / radius)
+                other['vx'] += math.cos(angle) * force
+                other['vy'] += math.sin(angle) * force
+
+        close_window(grenade_block['window'])
+
+    # Create the grenade window like a block
+    create_window(
+        title="Impulse Grenade",
+        image_path=None,
+        scale=1.0,
+        floating=False
+    )
+
+    grenade_block = open_windows[-1]  # The most recently created block
+    label = tk.Label(grenade_block['window'], text="IMPULSE\nGRENADE", bg="gray", fg="white")
+    label.pack(fill="both", expand=True)
+
+    # Schedule explosion
+    grenade_block['window'].after(3000, lambda: on_explode(grenade_block))
+
 # === Slot Machine ===
 def open_slot_machine(event=None):
     try_purchase("Slot Machine", lambda: create_slot_machine_window())
@@ -141,38 +192,106 @@ def create_slot_machine_window():
     slot_machine_window = tk.Toplevel()
     slot_machine_window.title("Slot Machine")
     slot_machine_window.geometry(f"400x300+{SCREEN_WIDTH//2-200}+{SCREEN_HEIGHT//2-150}")
-    play_button = tk.Button(slot_machine_window, text="Play Slot Machine ($25)", command=play_slot_machine)
-    play_button.pack(pady=20)
+    slot_machine_window.resizable(False, False)
 
-def play_slot_machine():
-    cost = GameConfig.ITEM_PRICES["Play Slot Machine"]
-    if GameConfig.SHOP_POINTS >= cost:
-        GameConfig.SHOP_POINTS -= cost
-        update_shop_ui()
+    bg_img = Image.open(image_paths["Slot_bg"]).resize((400, 300), Image.Resampling.LANCZOS)
+    bg_tk = ImageTk.PhotoImage(bg_img)
 
-        fruits = ["Apple", "Bell", "Bar", "Cherry", "Melon", "Orange", "Strawberry"]
-        fruit1, fruit2, fruit3 = random.choices(fruits, k=3)
+    canvas = tk.Canvas(slot_machine_window, width=400, height=300, highlightthickness=0, bd=0)
+    canvas.pack()
+    canvas.bg_img = bg_tk
+    canvas.create_image(0, 0, image=bg_tk, anchor="nw")
 
-        # Create floating fruit windows
-        create_window(fruit1, image_paths[fruit1], scale=0.5, floating=True)
-        create_window(fruit2, image_paths[fruit2], scale=0.5, floating=True)
-        create_window(fruit3, image_paths[fruit3], scale=0.5, floating=True)
+    slot_positions = [(100, 135), (185, 135), (270, 135)]
+    fruit_image_ids = [None, None, None]  # Start with empty slots
 
-        if fruit1 == fruit2 == fruit3:
-            if fruit1 == "Bell":
-                GameConfig.SHOP_POINTS += random.randint(5, 20)
-            elif fruit1 == "Bar":
-                GameConfig.SHOP_POINTS += random.randint(10, 30)
-            else:
-                GameConfig.SHOP_POINTS += random.randint(1, 10)
-        elif fruit1 == fruit2 or fruit2 == fruit3 or fruit1 == fruit3:
-            GameConfig.SHOP_POINTS += random.randint(3, 8)
+    fruits = ["Apple", "Cherry", "Melon", "Orange", "Strawberry", "Bell", "Bar"]
+    fruit_weights = [5, 5, 5, 5, 5, 2, 1]
+    spin_result = random.choices(fruits, weights=fruit_weights, k=3)
+    fruit_imgs = {}
+    for fruit in fruits:
+        img = Image.open(image_paths[fruit]).resize((75, 75), Image.Resampling.LANCZOS)
+        fruit_imgs[fruit] = ImageTk.PhotoImage(img)
+
+    # Create placeholder image slots (invisible until spin starts)
+    for i, (x, y) in enumerate(slot_positions):
+        fruit_image_ids[i] = canvas.create_image(x, y, image=None)
+
+    # Create 5 text layers for outline
+    text_positions = [(200 + dx, 200 + dy) for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0)]]
+    result_text_ids = [
+        canvas.create_text(x, y, text="", font=("Arial", 16, "bold"),
+                           fill="black" if (x, y) != (200, 200) else "white")
+        for (x, y) in text_positions
+    ]
+
+    def on_click():
+        play_slot_machine_canvas(canvas, fruit_image_ids, result_text_ids, fruit_imgs, play_button)
+
+    play_button = tk.Button(canvas, text="Play Slot Machine ($25)", command=on_click,
+                            bg="gray20", fg="white", bd=0, highlightthickness=0)
+    canvas.create_window(200, 260, window=play_button)
+
+def play_slot_machine_canvas(canvas, fruit_image_ids, result_text_ids, fruit_imgs, play_button):
+    if GameConfig.SHOP_POINTS < GameConfig.ITEM_PRICES["Play Slot Machine"]:
+        return
+
+    GameConfig.SHOP_POINTS -= GameConfig.ITEM_PRICES["Play Slot Machine"]
+    update_shop_ui()
+    play_button.config(state=tk.DISABLED)
+
+    # Clear previous text
+    for tid in result_text_ids:
+        canvas.itemconfig(tid, text="")
+
+    fruits = list(fruit_imgs.keys())
+    spin_cycles = 20
+    fruit_weights = [5, 5, 5, 5, 5, 2, 1]
+    final_result = random.choices(fruits, weights=fruit_weights, k=3)
+
+    def spin_cycle(count=0):
+        if count < spin_cycles:
+            spin_result = random.choices(fruits, k=3)
+            for i, fruit in enumerate(spin_result):
+                canvas.itemconfig(fruit_image_ids[i], image=fruit_imgs[fruit])
+            canvas.after(100, lambda: spin_cycle(count + 1))
         else:
-            GameConfig.SHOP_POINTS += random.randint(1, 5)
+            for i, fruit in enumerate(final_result):
+                canvas.itemconfig(fruit_image_ids[i], image=fruit_imgs[fruit])
 
-        update_shop_ui()
+            reward = 0
+            if final_result[0] == final_result[1] == final_result[2]:
+                reward = random.randint(25, 51) if final_result[0] == "Bar" else \
+                         random.randint(15, 26) if final_result[0] == "Bell" else \
+                         random.randint(10, 16)
+            elif final_result[0] == final_result[1] or final_result[1] == final_result[2] or final_result[0] == final_result[2]:
+                reward = random.randint(5, 11)
+            else:
+                reward = random.randint(1, 6)
 
-# === Physics ===
+            GameConfig.SHOP_POINTS += reward
+            update_shop_ui()
+
+            # Set bordered text
+            result_text = f"You won {reward} points!"
+            for tid in result_text_ids[:-1]:
+                canvas.itemconfig(tid, text=result_text)
+            canvas.itemconfig(result_text_ids[-1], text=result_text)  # White top text
+
+            # Cleanup after delay
+            def cleanup():
+                for img_id in fruit_image_ids:
+                    canvas.itemconfig(img_id, image=None)
+                for tid in result_text_ids:
+                    canvas.itemconfig(tid, text="")
+                play_button.config(state=tk.NORMAL)
+
+            canvas.after(2000, cleanup)
+
+    spin_cycle()
+
+    update_shop_ui()
+
 def apply_physics():
     for block in open_windows[:]:
         if block.get('floating'):
@@ -189,6 +308,10 @@ def apply_physics():
         grounded = False
         friction = 0.7
 
+        # Check if it's an ice cube
+        if block['type'] == "Ice Cube" and 'bounced' not in block:
+            block['bounced'] = False
+
         if block['stacked_on']:
             stack_block = block['stacked_on']
             block['x'] = stack_block['x']
@@ -199,18 +322,21 @@ def apply_physics():
         if x <= 0 or x + width >= SCREEN_WIDTH:
             x = max(0, min(SCREEN_WIDTH - width, x))
             if bouncy or block['type'] == "Ice Cube":
-                vx = -vx * 1.1
-                vx *= 0.9
-                GameConfig.SHOP_POINTS += 10
-                update_shop_ui()
+                # Ice Cube behavior: Slide along the wall
+                if block['type'] == "Ice Cube" and not block['bounced'] and not block['grounded']:
+                    # Only bounce when grounded
+                    if is_grounded:
+                        GameConfig.SHOP_POINTS += 10
+                        block['bounced'] = True  # Mark that the Ice Cube has bounced off the wall
+                        update_shop_ui()
+
+                # Sliding effect: Apply velocity reduction when the ice cube slides along the wall
+                vx = -vx * 1.1  # Slightly reverse the horizontal velocity
+                vx *= 0.9  # Reduce speed as it slides down
             else:
                 vx = 0
 
-        if y <= 0:
-            y = 0
-            vy = -vy * 0.6 if bouncy else 0
-
-        # Collisions
+        # Collisions with other objects
         for other in open_windows:
             if other == block or other.get('floating'):
                 continue
@@ -229,7 +355,7 @@ def apply_physics():
                     vx = -vx * 1.1 if bouncy else 0
                     vx *= 0.9
 
-        # Ground
+        # Ground check for ice cube and other objects
         ground_y = SCREEN_HEIGHT - height - GameConfig.FLOAT_ABOVE_BOTTOM
         if y >= ground_y:
             y = ground_y
@@ -242,6 +368,7 @@ def apply_physics():
             if abs(vx) < 0.1:
                 vx = 0
 
+        # When ice cube is grounded, apply extra physics (bounce/slide on impact)
         if grounded and not is_grounded:
             if block['type'] == "Bouncy Ball":
                 GameConfig.SHOP_POINTS += 10
@@ -320,15 +447,8 @@ def delete_all_objects():
 
     update_shop_ui()
 
-# === Update UI ===
-def update_shop_ui():
-    shop_window.title(f"Window Shop: Your Points = {GameConfig.SHOP_POINTS}")
-    for item, button in shop_buttons.items():
-        price = GameConfig.ITEM_PRICES.get(item, 'N/A')
-        button.config(text=f"{item} (${price})")
-        button.config(state=tk.NORMAL if GameConfig.SHOP_POINTS >= price else tk.DISABLED)
 
-# === GUI ===
+# === Shop GUI Update ===
 class ShopGUI(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
@@ -348,12 +468,17 @@ class ShopGUI(tk.Frame):
         shop_buttons["Bouncy Ball"] = tk.Button(self, image=self.ball_shop_img, compound="bottom", command=open_ball_window)
         shop_buttons["Ice Cube"] = tk.Button(self, image=self.ice_shop_img, compound="bottom", command=open_ice_window)
         shop_buttons["Slot Machine"] = tk.Button(self, text="Slot Machine", command=open_slot_machine)
-        
+        shop_buttons["Impulse Grenade"] = tk.Button(self, text="Impulse Grenade", command=open_impulse_grenade)  # NEW BUTTON
+
         self.canvas.create_window(10, 10, anchor="nw", window=shop_buttons["Wooden Block"])
         self.canvas.create_window(140, 10, anchor="nw", window=shop_buttons["Bouncy Ball"])
         self.canvas.create_window(270, 10, anchor="nw", window=shop_buttons["Ice Cube"])
         self.canvas.create_window(10, 100, anchor="nw", window=shop_buttons["Slot Machine"])
-        
+        self.canvas.create_window(140, 100, anchor="nw", window=shop_buttons["Impulse Grenade"])  # BUTTON POSITION
+
+        self.refund_button = tk.Button(self, text="Refund All", command=self.refund_all)
+        self.canvas.create_window(10, 190, anchor="nw", window=self.refund_button)
+
         self.pack(fill="both", expand=True)
         self.master.bind("<Configure>", self.on_resize)
         self.on_resize()
@@ -367,6 +492,30 @@ class ShopGUI(tk.Frame):
             self.canvas.delete(self.bg_image_id)
         self.bg_image_id = self.canvas.create_image(0, 0, image=self.bg_image_tk, anchor="nw")
         self.canvas.tag_lower(self.bg_image_id)
+
+    def refund_all(self):
+        global open_windows
+        total_refund = 0
+        for block in open_windows[:]:
+            block_type = block['type']
+            if block_type == "Ice Cube":
+                original_width = block['window'].winfo_width()
+                melted_pct = 1 - (original_width / GameConfig.WIDTH)
+                refund = max(1, (GameConfig.ITEM_PRICES["Ice Cube"] * (1 - melted_pct)))
+            else:
+                refund = (GameConfig.ITEM_PRICES.get(block_type, 0) /2)
+            total_refund += int(refund)
+            close_window(block['window'])
+        open_windows.clear()
+        GameConfig.SHOP_POINTS += total_refund
+        update_shop_ui()
+
+def update_shop_ui():
+    shop_window.title(f"Window Shop: Your Points = {GameConfig.SHOP_POINTS}")
+    for item, button in shop_buttons.items():
+        price = GameConfig.ITEM_PRICES.get(item, 'N/A')
+        button.config(text=f"{item} (${price})")
+        button.config(state=tk.NORMAL if GameConfig.SHOP_POINTS >= price else tk.DISABLED)
 
 # === Main ===
 if __name__ == "__main__":
