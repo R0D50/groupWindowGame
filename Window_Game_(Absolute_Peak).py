@@ -26,7 +26,11 @@ class GameConfig:
         "Spin Slot Machine": 25,
         "Impulse Grenade": 30,  # New item
         "Implosion Grenade": 30,
-        "Coin": 0
+        "Coin": 0,
+        "Ultra Wooden Block": 50,
+        "Ultimate Ice Cube": 65,
+        "Upgraded Impulse Grenade": 100,
+        "Upgraded Implosion Grenade": 100
     }
 
 # === Screen Setup ===
@@ -48,6 +52,8 @@ image_paths = {
     "Super Bouncy Ball": root_dir / "Window_Images" / "SBB.png",
     "Ice Cube": root_dir / "Window_Images" / "IC.png",
     "Implosion": root_dir / "Window_Images" / "VG.png",
+    "Ultra Wooden Block": root_dir / "Window_Images" / "UWB.png",
+    "Ultimate Ice Cube": root_dir / "Window_Images" / "UIC.png",
     "WBs": root_dir / "Shop_Images" / "WBs.png",
     "BBs": root_dir / "Shop_Images" / "BBs.png",
     "SBBs": root_dir / "Shop_Images" / "SBBs.png",
@@ -65,7 +71,12 @@ image_paths = {
     "Strawberry": root_dir / "Slot_Images" / "SB.png",
     "Coin": root_dir / "Slot_Images" / "CN.png",
     "Slot_bg": root_dir / "Slot_Images" / "SlotMachine.png",
-    "Imp_gren": root_dir / "Window_Images" / "IG.png"
+    "Imp_gren": root_dir / "Window_Images" / "IG.png",
+    "UICs": root_dir / "Shop_Images" / "UICs.png",
+    "UIGs": root_dir / "Shop_Images" / "UIGs.png",
+    "UVGs": root_dir / "Shop_Images" / "UVgs.png",
+    "UWBs": root_dir / "Shop_Images" / "UWBs.png"
+    
 }
 
 # === Utilities ===
@@ -121,8 +132,9 @@ def create_window(title, image_path, is_bouncy=False, is_slippery=False, is_supe
     new_window.bind("<B1-Motion>", lambda e, w=new_window: on_window_drag(e, w))
     new_window.bind("<ButtonRelease-1>", lambda e, w=new_window: on_window_release(e, w))
 
-    if title == "Ice Cube":
+    if title in ["Ice Cube", "Ultimate Ice Cube"]:
         start_melting(block)
+
 
     if floating:
         new_window.after(3000, lambda: close_window(new_window))
@@ -143,6 +155,9 @@ def try_purchase(item_name, creation_func):
 def open_wood_window(event=None):
     try_purchase("Wooden Block", lambda: create_window("Wooden Block", image_paths["Wooden Block"]))
 
+def open_ultra_wood_window(event=None):
+    try_purchase("Ultra Wooden Block", lambda: create_window("Ultra Wooden Block", image_paths["Ultra Wooden Block"]))
+
 def open_ball_window(event=None):
     try_purchase("Bouncy Ball", lambda: create_window("Bouncy Ball", image_paths["Bouncy Ball"], is_bouncy=True, scale=0.5))
 
@@ -151,15 +166,63 @@ def open_super_ball_window(event=None):
 
 def open_ice_window(event=None):
     try_purchase("Ice Cube", lambda: create_window("Ice Cube", image_paths["Ice Cube"], is_slippery=True, scale=0.5))
-
+def open_ultimate_ice_window(event=None):
+    try_purchase("Ultimate Ice Cube", lambda: create_window("Ultimate Ice Cube", image_paths["Ultimate Ice Cube"], is_slippery=True, scale=0.5))
 # === NEW: Impulse Grenade ===
 def open_impulse_grenade(event=None):
     try_purchase("Impulse Grenade", create_impulse_grenade)
+def open_upgraded_impulse_grenade(event=None):
+    try_purchase("Impulse Grenade", create_upgraded_impulse_grenade)
 
 def open_implosion_grenade(event=None):
     try_purchase("Implosion Grenade", create_implosion_grenade)
+def open_upgraded_implosion_grenade(event=None):
+    try_purchase("Implosion Grenade", create_upgraded_implosion_grenade)
 
 def create_impulse_grenade():
+    def on_explode(grenade_block):
+        if grenade_block not in open_windows:
+            return
+
+        gx = grenade_block['x'] + grenade_block['width'] / 2
+        gy = grenade_block['y'] + grenade_block['height'] / 2
+        radius = 300
+        max_force = 75
+
+        for other in open_windows:
+            if other == grenade_block or other.get('floating'):
+                continue
+
+            ox = other['x'] + other['width'] / 2
+            oy = other['y'] + other['height'] / 2
+            dx = ox - gx
+            dy = oy - gy
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+
+            if dist < radius and dist > 0:
+                angle = math.atan2(dy, dx)
+                force = max_force * (1 - dist / radius)
+                other['vx'] += math.cos(angle) * force
+                other['vy'] += math.sin(angle) * force
+
+        close_window(grenade_block['window'])
+
+    # Create the grenade window like a block
+    create_window(
+        title="Impulse Grenade",
+        image_path= root_dir / "Window_Images" / "IG.png",
+        scale=.25,
+        floating=False
+    )
+
+    grenade_block = open_windows[-1]  # The most recently created block
+    label = tk.Label(grenade_block['window'], text="IMPULSE\nGRENADE", bg="gray", fg="white")
+    label.pack(fill="both", expand=True)
+
+    # Schedule explosion
+    grenade_block['window'].after(3000, lambda: on_explode(grenade_block))
+    
+def create_upgraded_impulse_grenade():
     def on_explode(grenade_block):
         if grenade_block not in open_windows:
             return
@@ -209,6 +272,49 @@ def create_implosion_grenade():
 
         gx = void_grenade_block['x'] + void_grenade_block['width'] / 2
         gy = void_grenade_block['y'] + void_grenade_block['height'] / 2
+        radius = 250
+        max_force = -100
+
+        for other in open_windows:
+            if other == void_grenade_block or other.get('floating'):
+                continue
+
+            ox = other['x'] + other['width'] / 2
+            oy = other['y'] + other['height'] / 2
+            dx = ox - gx
+            dy = oy - gy
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+
+            if dist < radius and dist > 0:
+                angle = math.atan2(dy, dx)
+                force = max_force * (1 - dist / radius)
+                other['vx'] += math.cos(angle) * force
+                other['vy'] += math.sin(angle) * force
+
+        close_window(void_grenade_block['window'])
+
+    # Create the grenade window like a block
+    create_window(
+        title="Implosion Grenade",
+        image_path= root_dir / "Window_Images" / "VG.png",
+        scale=.25,
+        floating=False
+    )
+
+    void_grenade_block = open_windows[-1]  # The most recently created block
+    #label = tk.Label(void_grenade_block['window'], text="IMPULSE\nGRENADE", bg="gray", fg="white")
+    #label.pack(fill="both", expand=True)
+
+    # Schedule explosion
+    void_grenade_block['window'].after(3000, lambda: on_explode(void_grenade_block))
+
+def create_implosion_grenade():
+    def on_explode(void_grenade_block):
+        if void_grenade_block not in open_windows:
+            return
+
+        gx = void_grenade_block['x'] + void_grenade_block['width'] / 2
+        gy = void_grenade_block['y'] + void_grenade_block['height'] / 2
         radius = 500
         max_force = -200
 
@@ -244,7 +350,6 @@ def create_implosion_grenade():
 
     # Schedule explosion
     void_grenade_block['window'].after(3000, lambda: on_explode(void_grenade_block))
-
 # === Coin ===
 def open_coin_window(event=None):
     try_purchase("Coin", lambda: create_coin_window())
@@ -343,36 +448,29 @@ def play_slot_machine_canvas(canvas, fruit_image_ids, result_text_ids, fruit_img
 
             reward = 0
             if final_result[0] == final_result[1] == final_result[2]:
-                reward = random.randint(8, 12) if final_result[0] == "Bar" else \
-                         random.randint(3, 8) if final_result[0] == "Bell" else \
-                         random.randint(1, 5)
+                reward = random.randint(25, 51) if final_result[0] == "Bar" else \
+                         random.randint(15, 26) if final_result[0] == "Bell" else \
+                         random.randint(10, 16)
             elif final_result[0] == final_result[1] or final_result[1] == final_result[2] or final_result[0] == final_result[2]:
-                reward = 2
+                reward = random.randint(5, 11)
             else:
-                reward = 1
+                reward = random.randint(1, 6)
 
-            #GameConfig.SHOP_POINTS += reward
-            #update_shop_ui()
-
-            for i in range(reward):
-                open_coin_window()
-
+            GameConfig.SHOP_POINTS += reward
+            update_shop_ui()
 
             # Set bordered text
-            #if reward != 1:
-                #result_text = f"You won {reward} points!"
-            #if reward == 1:
-                #result_text = f"You won {reward} point!"
-            #for tid in result_text_ids[:-1]:
-                #canvas.itemconfig(tid, text=result_text)
-            #canvas.itemconfig(result_text_ids[-1], text=result_text)  # White top text
+            result_text = f"You won {reward} points!"
+            for tid in result_text_ids[:-1]:
+                canvas.itemconfig(tid, text=result_text)
+            canvas.itemconfig(result_text_ids[-1], text=result_text)  # White top text
 
             # Cleanup after delay
             def cleanup():
                 for img_id in fruit_image_ids:
                     canvas.itemconfig(img_id, image=None)
-                #for tid in result_text_ids:
-                    #canvas.itemconfig(tid, text="")
+                for tid in result_text_ids:
+                    canvas.itemconfig(tid, text="")
                 play_button.config(state=tk.NORMAL)
 
             canvas.after(2000, cleanup)
@@ -398,7 +496,7 @@ def apply_physics():
         friction = 0.7
 
         # Check if it's an ice cube
-        if block['type'] == "Ice Cube" and 'bounced' not in block:
+        if block['type'] == "Ice Cube" or "Ultimate Ice Cube" and 'bounced' not in block:
             block['bounced'] = False
 
         if block['stacked_on']:
@@ -410,9 +508,9 @@ def apply_physics():
         # Walls
         if x <= 0 or x + width >= SCREEN_WIDTH:
             x = max(0, min(SCREEN_WIDTH - width, x))
-            if bouncy or super_bouncy or block['type'] == "Ice Cube":
+            if bouncy or super_bouncy or block['type'] == "Ice Cube" or "Ultimate Ice Cube":
                 # Ice Cube behavior: Slide along the wall
-                if block['type'] == "Ice Cube" and not block['bounced'] and not block['grounded']:
+                if block['type'] == "Ice Cube" or "Ultimate Ice CUbe" and not block['bounced'] and not block['grounded']:
                     # Only bounce when grounded
                     if is_grounded:
                         GameConfig.SHOP_POINTS += 10
@@ -433,16 +531,32 @@ def apply_physics():
             if (x < ox + ow and x + width > ox and y + height > oy and y < oy + oh):
                 if vy > 0 and y + height - vy <= oy:
                     y = oy - height
-                    vy = -vy * 0.6 if bouncy and abs(vy) > 3 else -vy * 1.1 if super_bouncy and abs(vy) > 3 else -vy * 0
+                    if block['type'] == "Ultimate Ice Cube":
+                        vy = 0  # no bounce, just land and slide
+                    else:
+                        if bouncy and abs(vy) > 3:
+                            vy = -vy * 0.6
+                        elif super_bouncy and abs(vy) > 3:
+                            vy = -vy * 1.1
+                        else:
+                            vy = 0
                     grounded = True
+
                 elif vx > 0:
                     x = ox - width
-                    vx = -vx * 0.9 if bouncy else 0.9 if slippery else -vx * 1.1 if super_bouncy else -vx * 0
-                    vx *= 1 if super_bouncy else 0.9
+                    if block['type'] == "Ultimate Ice Cube":
+                        vx = -vx * 1.0001
+                    else:
+                        vx = -vx * 0.9 if bouncy else 0.9 if slippery else -vx * 1.1 if super_bouncy else -vx * 0
+                        vx *= 1 if super_bouncy else 0.9
                 elif vx < 0:
                     x = ox + ow
-                    vx = -vx * 0.9 if bouncy else 0.9 if slippery else -vx * 1.1 if super_bouncy else -vx * 0
-                    vx *= 1 if super_bouncy else 0.9
+                    if block['type'] == "Ultimate Ice Cube":
+                        vx = -vx * 1.0001
+                    else:
+                        vx = -vx * 0.9 if bouncy else 0.9 if slippery else -vx * 1.1 if super_bouncy else -vx * 0
+                        vx *= 1 if super_bouncy else 0.9
+
 
         # Ground check for ice cube and other objects
         ground_y = SCREEN_HEIGHT - height - GameConfig.FLOAT_ABOVE_BOTTOM
@@ -453,9 +567,13 @@ def apply_physics():
             friction = 0.995 if slippery else 1 if super_bouncy else 0.7
 
         if grounded:
-            vx *= 0.995 if slippery else 1 if super_bouncy else friction
-            if abs(vx) < 0.1:
-                vx = 0
+            if block['type'] == "Ultimate Ice Cube":
+                vx *= 1.02  # Speeds up over time
+            else:
+                vx *= 0.995 if slippery else 1 if super_bouncy else friction
+                if abs(vx) < 0.1:
+                    vx = 0
+
 
         # When ice cube is grounded, apply extra physics (bounce/slide on impact)
         if grounded and not is_grounded:
@@ -463,10 +581,15 @@ def apply_physics():
                 GameConfig.SHOP_POINTS += 5
             if block['type'] == "Wooden Block":
                 GameConfig.SHOP_POINTS += 2
+            if block['type'] == "Ultra Wooden Block":
+                GameConfig.SHOP_POINTS += 5
             if block['type'] == "Super Bouncy Ball":
                 GameConfig.SHOP_POINTS += 1
-            elif block['type'] == "Ice Cube":
+            if block['type'] == "Ice Cube":
                 GameConfig.SHOP_POINTS += 1
+            update_shop_ui()
+            if block['type'] == "Ultimate Ice Cube":
+                GameConfig.SHOP_POINTS += 10
             update_shop_ui()
 
         block.update({'x': x, 'y': y, 'vx': vx, 'vy': vy, 'grounded': grounded})
@@ -525,7 +648,7 @@ def start_melting(block):
         w, h, x, y = int(block['width']), int(block['height']), int(block['x']), int(block['y'])
         block['window'].geometry(f"{w}x{h}+{x}+{y}")
         block['window'].after(1000, melt)
-
+    
     melt()
 
 # === Delete All Objects ===
@@ -559,9 +682,17 @@ class ShopGUI(tk.Frame):
         self.ice_shop_img = ImageTk.PhotoImage(Image.open(image_paths["ICs"]))
         self.impulse_shop_img = ImageTk.PhotoImage(Image.open(image_paths["IGs"]))
         self.slots_shop_img = ImageTk.PhotoImage(Image.open(image_paths["SMs"]))
+        self.ultra_block_shop_img = ImageTk.PhotoImage(Image.open(image_paths["UWBs"]))
+        self.ultimate_ice_shop_img = ImageTk.PhotoImage(Image.open(image_paths["UICs"]))
         self.implosion_shop_img = ImageTk.PhotoImage(Image.open(image_paths["VGs"]))
-
+        self.upgraded_implosion_shop_img = ImageTk.PhotoImage(Image.open(image_paths["UVGs"]))
+        self.upgraded_impulse_shop_img = ImageTk.PhotoImage(Image.open(image_paths["UIGs"]))
+        
         shop_buttons["Wooden Block"] = tk.Button(self, image=self.block_shop_img, compound="bottom", command=open_wood_window)
+        shop_buttons["Ultra Wooden Block"] = tk.Button(self, image=self.ultra_block_shop_img, compound="bottom", command=open_ultra_wood_window)
+        shop_buttons["Ultimate Ice Cube"]= tk.Button(self, image=self.ultimate_ice_shop_img, compound="bottom", command=open_ultimate_ice_window)
+        shop_buttons["Upgraded Impulse Grenade"] = tk.Button(self, image=self.upgraded_impulse_shop_img, compound="bottom", command=open_upgraded_impulse_grenade)
+        shop_buttons["Upgraded Implosion Grenade"] = tk.Button(self, image=self.upgraded_implosion_shop_img, compound="bottom", command=open_upgraded_implosion_grenade)
         shop_buttons["Bouncy Ball"] = tk.Button(self, image=self.ball_shop_img, compound="bottom", command=open_ball_window)
         shop_buttons["Super Bouncy Ball"] = tk.Button(self, image=self.super_ball_shop_img, compound="bottom", command=open_super_ball_window)
         shop_buttons["Ice Cube"] = tk.Button(self, image=self.ice_shop_img, compound="bottom", command=open_ice_window)
@@ -576,9 +707,13 @@ class ShopGUI(tk.Frame):
         self.canvas.create_window(10, 100, anchor="nw", window=shop_buttons["Slot Machine"])
         self.canvas.create_window(140, 100, anchor="nw", window=shop_buttons["Impulse Grenade"])  # BUTTON POSITION
         self.canvas.create_window(270, 100, anchor="nw", window=shop_buttons["Implosion Grenade"]) 
+        self.canvas.create_window(410, 100, anchor="nw", window=shop_buttons["Ultra Wooden Block"]) 
+        self.canvas.create_window(10, 190, anchor="nw", window=shop_buttons["Ultimate Ice Cube"]) 
+        self.canvas.create_window(150, 190, anchor="nw", window=shop_buttons["Upgraded Impulse Grenade"]) 
+        self.canvas.create_window(340, 190, anchor="nw", window=shop_buttons["Upgraded Implosion Grenade"]) 
 
         self.refund_button = tk.Button(self, text="Refund All", command=self.refund_all)
-        self.canvas.create_window(10, 190, anchor="nw", window=self.refund_button)
+        self.canvas.create_window(10, 250, anchor="nw", window=self.refund_button)
 
         self.pack(fill="both", expand=True)
         self.master.bind("<Configure>", self.on_resize)
@@ -614,9 +749,12 @@ class ShopGUI(tk.Frame):
 def update_shop_ui():
     shop_window.title(f"Window Shop: Your Points = {GameConfig.SHOP_POINTS}")
     for item, button in shop_buttons.items():
-        price = GameConfig.ITEM_PRICES.get(item, 'N/A')
-        button.config(text=f"{item} (${price})")
-        button.config(state=tk.NORMAL if GameConfig.SHOP_POINTS >= price else tk.DISABLED)
+        price = GameConfig.ITEM_PRICES.get(item)
+        button.config(text=f"{item} (${price if price is not None else 'N/A'})")
+        if isinstance(price, int) and GameConfig.SHOP_POINTS >= price:
+            button.config(state=tk.NORMAL)
+        else:
+            button.config(state=tk.DISABLED)
 
 # === Main ===
 if __name__ == "__main__":
