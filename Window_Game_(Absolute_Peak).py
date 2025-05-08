@@ -46,7 +46,7 @@ image_paths = {
     "WBs": root_dir / "Shop_Images" / "WBs.png",
     "BBs": root_dir / "Shop_Images" / "BBs.png",
     "ICs": root_dir / "Shop_Images" / "ICs.png",
-    "Shop_bg": root_dir / "Window_Images" / "Main_Background.png",
+    "Shop_bg": root_dir / "Shop_Images" / "Shop_bg.png",
     "Apple": root_dir / "Slot_Images" / "AP.png",
     "Bell": root_dir / "Slot_Images" / "BL.png",
     "Bar": root_dir / "Slot_Images" / "BR.png",
@@ -55,7 +55,8 @@ image_paths = {
     "Orange": root_dir / "Slot_Images" / "OR.png",
     "Strawberry": root_dir / "Slot_Images" / "SB.png",
     "Coin": root_dir / "Slot_Images" / "CN.png",
-    "Slot_bg": root_dir / "Slot_Images" / "SlotMachine.png"
+    "Slot_bg": root_dir / "Slot_Images" / "SlotMachine.png",
+    "Imp_gren": root_dir / "Window_Images" / "IG.png"
 }
 
 # === Utilities ===
@@ -173,8 +174,8 @@ def create_impulse_grenade():
     # Create the grenade window like a block
     create_window(
         title="Impulse Grenade",
-        image_path=None,
-        scale=1.0,
+        image_path= root_dir / "Window_Images" / "IG.png",
+        scale=.25,
         floating=False
     )
 
