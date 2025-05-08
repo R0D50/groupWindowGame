@@ -19,11 +19,13 @@ class GameConfig:
     ITEM_PRICES = {
         "Wooden Block": 10,
         "Bouncy Ball": 20,
+        "Super Bouncy Ball": 75,
         "Ice Cube": 15,
         "Slot Machine": 75,
         "Play Slot Machine": 25,
         "Spin Slot Machine": 25,
-        "Impulse Grenade": 50  # New item
+        "Impulse Grenade": 30,  # New item
+        "Implosion Grenade": 30
     }
 
 # === Screen Setup ===
@@ -43,9 +45,13 @@ image_paths = {
     "Wooden Block": root_dir / "Window_Images" / "WB.png",
     "Bouncy Ball": root_dir / "Window_Images" / "BB.png",
     "Ice Cube": root_dir / "Window_Images" / "IC.png",
+    "Implosion": root_dir / "Window_Images" / "VG.png",
     "WBs": root_dir / "Shop_Images" / "WBs.png",
     "BBs": root_dir / "Shop_Images" / "BBs.png",
     "ICs": root_dir / "Shop_Images" / "ICs.png",
+    "IGs": root_dir / "Shop_Images" / "IGs.png",
+    "VGs": root_dir / "Shop_Images" / "VGs.png",
+    "SMs": root_dir / "Shop_Images" / "SMs.png",
     "Shop_bg": root_dir / "Shop_Images" / "Shop_bg.png",
     "Apple": root_dir / "Slot_Images" / "AP.png",
     "Bell": root_dir / "Slot_Images" / "BL.png",
@@ -96,6 +102,7 @@ def create_window(title, image_path, is_bouncy=False, is_slippery=False, scale=1
         'vy': 0,
         'falling': True,
         'bouncy': is_bouncy,
+        'super_bouncy': is_super_bouncy,
         'slippery': is_slippery,
         'width': img_width,
         'height': img_height,
@@ -143,6 +150,9 @@ def open_ice_window(event=None):
 def open_impulse_grenade(event=None):
     try_purchase("Impulse Grenade", create_impulse_grenade)
 
+def open_implosion_grenade(event=None):
+    try_purchase("Implosion Grenade", create_implosion_grenade)
+
 def create_impulse_grenade():
     def on_explode(grenade_block):
         if grenade_block not in open_windows:
@@ -185,6 +195,49 @@ def create_impulse_grenade():
 
     # Schedule explosion
     grenade_block['window'].after(3000, lambda: on_explode(grenade_block))
+
+def create_implosion_grenade():
+    def on_explode(void_grenade_block):
+        if void_grenade_block not in open_windows:
+            return
+
+        gx = void_grenade_block['x'] + void_grenade_block['width'] / 2
+        gy = void_grenade_block['y'] + void_grenade_block['height'] / 2
+        radius = 500
+        max_force = -200
+
+        for other in open_windows:
+            if other == void_grenade_block or other.get('floating'):
+                continue
+
+            ox = other['x'] + other['width'] / 2
+            oy = other['y'] + other['height'] / 2
+            dx = ox - gx
+            dy = oy - gy
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+
+            if dist < radius and dist > 0:
+                angle = math.atan2(dy, dx)
+                force = max_force * (1 - dist / radius)
+                other['vx'] += math.cos(angle) * force
+                other['vy'] += math.sin(angle) * force
+
+        close_window(void_grenade_block['window'])
+
+    # Create the grenade window like a block
+    create_window(
+        title="Implosion Grenade",
+        image_path= root_dir / "Window_Images" / "VG.png",
+        scale=.25,
+        floating=False
+    )
+
+    void_grenade_block = open_windows[-1]  # The most recently created block
+    #label = tk.Label(void_grenade_block['window'], text="IMPULSE\nGRENADE", bg="gray", fg="white")
+    #label.pack(fill="both", expand=True)
+
+    # Schedule explosion
+    void_grenade_block['window'].after(3000, lambda: on_explode(void_grenade_block))
 
 # === Slot Machine ===
 def open_slot_machine(event=None):
@@ -275,7 +328,10 @@ def play_slot_machine_canvas(canvas, fruit_image_ids, result_text_ids, fruit_img
             update_shop_ui()
 
             # Set bordered text
-            result_text = f"You won {reward} points!"
+            if reward != 1:
+                result_text = f"You won {reward} points!"
+            if reward == 1:
+                result_text = f"You won {reward} point!"
             for tid in result_text_ids[:-1]:
                 canvas.itemconfig(tid, text=result_text)
             canvas.itemconfig(result_text_ids[-1], text=result_text)  # White top text
@@ -373,7 +429,9 @@ def apply_physics():
         # When ice cube is grounded, apply extra physics (bounce/slide on impact)
         if grounded and not is_grounded:
             if block['type'] == "Bouncy Ball":
-                GameConfig.SHOP_POINTS += 10
+                GameConfig.SHOP_POINTS += 5
+            if block['type'] == "Wooden Block":
+                GameConfig.SHOP_POINTS += 2
             elif block['type'] == "Ice Cube":
                 GameConfig.SHOP_POINTS += 1
             update_shop_ui()
@@ -409,8 +467,8 @@ def on_window_release(event, window):
         if block['window'] == window:
             block['x'] = window.winfo_x()
             block['y'] = window.winfo_y()
-            block['vx'] = max(-30, min(block['vx'], 30))
-            block['vy'] = max(-30, min(block['vy'], 30))
+            block['vx'] = max(-300, min(block['vx'], 300))
+            block['vy'] = max(-300, min(block['vy'], 300))
             block['falling'] = True
             break
 
@@ -465,18 +523,23 @@ class ShopGUI(tk.Frame):
         self.block_shop_img = ImageTk.PhotoImage(Image.open(image_paths["WBs"]))
         self.ball_shop_img = ImageTk.PhotoImage(Image.open(image_paths["BBs"]))
         self.ice_shop_img = ImageTk.PhotoImage(Image.open(image_paths["ICs"]))
+        self.impulse_shop_img = ImageTk.PhotoImage(Image.open(image_paths["IGs"]))
+        self.slots_shop_img = ImageTk.PhotoImage(Image.open(image_paths["SMs"]))
+        self.implosion_shop_img = ImageTk.PhotoImage(Image.open(image_paths["VGs"]))
 
         shop_buttons["Wooden Block"] = tk.Button(self, image=self.block_shop_img, compound="bottom", command=open_wood_window)
         shop_buttons["Bouncy Ball"] = tk.Button(self, image=self.ball_shop_img, compound="bottom", command=open_ball_window)
         shop_buttons["Ice Cube"] = tk.Button(self, image=self.ice_shop_img, compound="bottom", command=open_ice_window)
-        shop_buttons["Slot Machine"] = tk.Button(self, text="Slot Machine", command=open_slot_machine)
-        shop_buttons["Impulse Grenade"] = tk.Button(self, text="Impulse Grenade", command=open_impulse_grenade)  # NEW BUTTON
+        shop_buttons["Slot Machine"] = tk.Button(self, text="Slot Machine", image = self.slots_shop_img, compound= "bottom", command=open_slot_machine)
+        shop_buttons["Impulse Grenade"] = tk.Button(self, text="Impulse Grenade", image = self.impulse_shop_img, compound= "bottom", command=open_impulse_grenade)  # NEW BUTTON
+        shop_buttons["Implosion Grenade"] = tk.Button(self, text="Implosion Grenade", image = self.implosion_shop_img, compound= "bottom", command=open_implosion_grenade)
 
         self.canvas.create_window(10, 10, anchor="nw", window=shop_buttons["Wooden Block"])
         self.canvas.create_window(140, 10, anchor="nw", window=shop_buttons["Bouncy Ball"])
         self.canvas.create_window(270, 10, anchor="nw", window=shop_buttons["Ice Cube"])
         self.canvas.create_window(10, 100, anchor="nw", window=shop_buttons["Slot Machine"])
         self.canvas.create_window(140, 100, anchor="nw", window=shop_buttons["Impulse Grenade"])  # BUTTON POSITION
+        self.canvas.create_window(270, 100, anchor="nw", window=shop_buttons["Implosion Grenade"]) 
 
         self.refund_button = tk.Button(self, text="Refund All", command=self.refund_all)
         self.canvas.create_window(10, 190, anchor="nw", window=self.refund_button)
